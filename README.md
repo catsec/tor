@@ -112,7 +112,10 @@ Web (Tor):    http://web456def.onion/
 ==== XMPP Server Ready ====
 Admin account created:
 JID: admin@xmpp789ghi.onion
-Password: [22-character random password]
+Password: [automatically generated 22-character password]
+
+IMPORTANT: Credentials are stored at: /var/lib/torstack-setup/admin_credentials.txt
+To view credentials later: sudo cat /var/lib/torstack-setup/admin_credentials.txt
 
 XMPP Connection (separate .onion):
    Server: xmpp789ghi.onion
@@ -122,10 +125,20 @@ XMPP Connection (separate .onion):
 
 Web Admin Interface (separate .onion):
    URL: http://admin012jkl.onion:5280/admin/
-   Login: admin@xmpp789ghi.onion
+   Login: admin@xmpp789ghi.onion (password from credentials file above)
 ```
 
 ## 👥 User Management
+
+### Retrieving Admin Credentials
+```bash
+# View admin login credentials
+sudo cat /var/lib/torstack-setup/admin_credentials.txt
+
+# Shows:
+# JID: admin@your-xmpp-onion.onion
+# Password: [your-22-character-password]
+```
 
 ### Creating Users
 ```bash
@@ -133,7 +146,9 @@ Web Admin Interface (separate .onion):
 prosodyctl adduser username@xmpp789ghi.onion
 
 # Via web admin interface
-# Navigate to http://admin012jkl.onion:5280/admin/
+# 1. Navigate to http://admin012jkl.onion:5280/admin/
+# 2. Login with admin credentials from file above
+# 3. Go to Users section to add new accounts
 ```
 
 ### XMPP Client Setup

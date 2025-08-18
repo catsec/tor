@@ -804,6 +804,12 @@ if [ $PROSODY_INSTALLED -eq 1 ] && [ -n "${XMPP_ONION:-}" ]; then
   echo "Admin account created:"
   if [ -f "$STAMPDIR/admin_credentials.txt" ]; then
     cat "$STAMPDIR/admin_credentials.txt"
+    echo
+    echo "IMPORTANT: Credentials are stored at: $STAMPDIR/admin_credentials.txt"
+    echo "To view credentials later: sudo cat $STAMPDIR/admin_credentials.txt"
+  else
+    echo "ERROR: Admin credentials file not found!"
+    echo "Manual admin user creation: prosodyctl adduser admin@$XMPP_ONION"
   fi
   echo
   echo "XMPP Connection (separate .onion):"
@@ -813,7 +819,11 @@ if [ $PROSODY_INSTALLED -eq 1 ] && [ -n "${XMPP_ONION:-}" ]; then
   echo "   Use Tor proxy (SOCKS5: 127.0.0.1:9050)"
   echo
   echo "Web Admin Interface (separate .onion):"
-  echo "   URL: http://$ADMIN_ONION:5280/admin/"
+  if [ -n "${ADMIN_ONION:-}" ]; then
+    echo "   URL: http://$ADMIN_ONION:5280/admin/"
+  else
+    echo "   URL: <waiting for admin onion address>"
+  fi
   echo "   Login: admin@$XMPP_ONION (use admin credentials above)"
   echo "   Note: If web admin doesn't work, use: prosodyctl for command-line administration"
   echo
