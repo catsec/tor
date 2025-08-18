@@ -612,7 +612,9 @@ EOF
     
     # Create admin user with random 22-character password
     ADMIN_PASSWORD="$(openssl rand -base64 33 | tr -d '=+/' | cut -c1-22)"
-    if echo "$ADMIN_PASSWORD" | prosodyctl adduser "admin@$XMPP_ONION"; then
+    # Use expect-like approach or direct prosodyctl register
+    if printf '%s\n%s\n' "$ADMIN_PASSWORD" "$ADMIN_PASSWORD" | prosodyctl adduser "admin@$XMPP_ONION" 2>/dev/null || \
+       echo "admin@$XMPP_ONION:$ADMIN_PASSWORD" | prosodyctl register "admin@$XMPP_ONION" "$ADMIN_PASSWORD" 2>/dev/null; then
       log "Admin user created: admin@$XMPP_ONION"
       # Store credentials securely
       echo "JID: admin@$XMPP_ONION" > "$STAMPDIR/admin_credentials.txt"
@@ -620,7 +622,14 @@ EOF
       chmod 600 "$STAMPDIR/admin_credentials.txt"
       chown root:root "$STAMPDIR/admin_credentials.txt"
     else
-      log_error "Failed to create admin user"
+      log_warn "Automatic admin user creation failed, manual creation required"
+      # Still store the generated password for manual use
+      echo "JID: admin@$XMPP_ONION" > "$STAMPDIR/admin_credentials.txt"
+      echo "Password: $ADMIN_PASSWORD" >> "$STAMPDIR/admin_credentials.txt"
+      echo "Status: REQUIRES_MANUAL_CREATION" >> "$STAMPDIR/admin_credentials.txt"
+      chmod 600 "$STAMPDIR/admin_credentials.txt"
+      chown root:root "$STAMPDIR/admin_credentials.txt"
+      log "Generated password stored. Create manually: prosodyctl adduser admin@$XMPP_ONION"
     fi
     
     mark "prosody_onion"
@@ -645,11 +654,11 @@ set -e
 echo "====== TOR SERVER CREDENTIALS ======"
 echo
 
-# Read onion addresses
-SSH_ONION="$(cat /var/lib/tor/ssh_service/hostname 2>/dev/null || echo "pending")"
-WEB_ONION="$(cat /var/lib/tor/web_service/hostname 2>/dev/null || echo "pending")"
-XMPP_ONION="$(cat /var/lib/tor/xmpp_service/hostname 2>/dev/null || echo "pending")"
-ADMIN_ONION="$(cat /var/lib/tor/admin_service/hostname 2>/dev/null || echo "pending")"
+# Read onion addresses (need sudo for tor directories)
+SSH_ONION="$(sudo cat /var/lib/tor/ssh_service/hostname 2>/dev/null || echo "pending")"
+WEB_ONION="$(sudo cat /var/lib/tor/web_service/hostname 2>/dev/null || echo "pending")"
+XMPP_ONION="$(sudo cat /var/lib/tor/xmpp_service/hostname 2>/dev/null || echo "pending")"
+ADMIN_ONION="$(sudo cat /var/lib/tor/admin_service/hostname 2>/dev/null || echo "pending")"
 
 echo "🔗 ONION ADDRESSES:"
 echo "  SSH:     ${SSH_ONION}"
@@ -660,7 +669,7 @@ echo
 
 echo "🔑 SSH ACCESS:"
 if [ "$SSH_ONION" != "pending" ]; then
-  SSH_USER="$(cat /var/lib/torstack-setup/env 2>/dev/null | grep SSH_USER | cut -d'"' -f2 || echo "unknown")"
+  SSH_USER="$(sudo cat /var/lib/torstack-setup/env 2>/dev/null | grep SSH_USER | cut -d'"' -f2 || echo "unknown")"
   echo "  torsocks ssh -p 22 ${SSH_USER}@${SSH_ONION}"
 else
   echo "  <waiting for SSH onion address>"
@@ -689,7 +698,7 @@ if dpkg -s prosody >/dev/null 2>&1; then
 
   echo "👤 ADMIN CREDENTIALS:"
   if [ -f "/var/lib/torstack-setup/admin_credentials.txt" ]; then
-    cat /var/lib/torstack-setup/admin_credentials.txt
+    sudo cat /var/lib/torstack-setup/admin_credentials.txt
   else
     echo "  ERROR: Admin credentials not found!"
     echo "  Create manually: prosodyctl adduser admin@${XMPP_ONION}"
