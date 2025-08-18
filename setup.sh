@@ -632,6 +632,97 @@ else
   [ $PROSODY_INSTALLED -eq 0 ] && echo "[prosody_onion] skipped (prosody not installed)" || echo "[prosody_onion] skipped"
 fi
 
+# ---------- 55 creds_script ----------
+if ! stamp "creds_script"; then
+  echo "=== [creds_script] Create credentials display script ==="
+  
+  cat >/usr/local/bin/creds.sh <<'EOF'
+#!/usr/bin/env bash
+# Display all Tor onion addresses and XMPP admin credentials
+
+set -e
+
+echo "====== TOR SERVER CREDENTIALS ======"
+echo
+
+# Read onion addresses
+SSH_ONION="$(cat /var/lib/tor/ssh_service/hostname 2>/dev/null || echo "pending")"
+WEB_ONION="$(cat /var/lib/tor/web_service/hostname 2>/dev/null || echo "pending")"
+XMPP_ONION="$(cat /var/lib/tor/xmpp_service/hostname 2>/dev/null || echo "pending")"
+ADMIN_ONION="$(cat /var/lib/tor/admin_service/hostname 2>/dev/null || echo "pending")"
+
+echo "🔗 ONION ADDRESSES:"
+echo "  SSH:     ${SSH_ONION}"
+echo "  Web:     ${WEB_ONION}"
+echo "  XMPP:    ${XMPP_ONION}"
+echo "  Admin:   ${ADMIN_ONION}"
+echo
+
+echo "🔑 SSH ACCESS:"
+if [ "$SSH_ONION" != "pending" ]; then
+  SSH_USER="$(cat /var/lib/torstack-setup/env 2>/dev/null | grep SSH_USER | cut -d'"' -f2 || echo "unknown")"
+  echo "  torsocks ssh -p 22 ${SSH_USER}@${SSH_ONION}"
+else
+  echo "  <waiting for SSH onion address>"
+fi
+echo
+
+echo "🌐 WEB ACCESS:"
+if [ "$WEB_ONION" != "pending" ]; then
+  echo "  http://${WEB_ONION}/"
+else
+  echo "  <waiting for web onion address>"
+fi
+echo
+
+if dpkg -s prosody >/dev/null 2>&1; then
+  echo "💬 XMPP SERVER:"
+  if [ "$XMPP_ONION" != "pending" ]; then
+    echo "  Server: ${XMPP_ONION}"
+    echo "  Port:   5222 (client), 5269 (server)"
+    echo "  MUC:    conference.${XMPP_ONION}"
+    echo "  Proxy:  proxy.${XMPP_ONION}"
+  else
+    echo "  <waiting for XMPP onion address>"
+  fi
+  echo
+
+  echo "👤 ADMIN CREDENTIALS:"
+  if [ -f "/var/lib/torstack-setup/admin_credentials.txt" ]; then
+    cat /var/lib/torstack-setup/admin_credentials.txt
+  else
+    echo "  ERROR: Admin credentials not found!"
+    echo "  Create manually: prosodyctl adduser admin@${XMPP_ONION}"
+  fi
+  echo
+
+  echo "⚙️ WEB ADMIN:"
+  if [ "$ADMIN_ONION" != "pending" ]; then
+    echo "  URL: http://${ADMIN_ONION}:5280/admin/"
+    echo "  Login with admin credentials above"
+  else
+    echo "  <waiting for admin onion address>"
+  fi
+  echo
+fi
+
+echo "📝 USAGE NOTES:"
+echo "  • All access requires Tor Browser or SOCKS5 proxy (127.0.0.1:9050)"
+echo "  • XMPP clients should use OMEMO encryption"
+echo "  • Create users: prosodyctl adduser username@${XMPP_ONION}"
+echo
+echo "======================================"
+EOF
+
+  chmod +x /usr/local/bin/creds.sh
+  
+  # Create symlink for easier access
+  ln -sf /usr/local/bin/creds.sh /usr/local/bin/creds
+  
+  log "Credentials display script created at /usr/local/bin/creds.sh"
+  mark "creds_script"
+else echo "[creds_script] skipped"; fi
+
 # ---------- 60 ufw ----------
 if ! stamp "ufw"; then
   echo "=== [ufw] Firewall rules ==="
@@ -786,6 +877,9 @@ echo "===== HEALTH CHECK END ====="
 echo
 log "Setup completed successfully"
 echo "====== DONE ======"
+echo
+echo "💡 Quick Access: Run 'creds' or 'creds.sh' anytime to display all URLs and credentials"
+echo
 if [ -n "${SSH_ONION:-}" ]; then
   echo "SSH via Tor:  torsocks ssh -p 22 ${SSH_USER}@${SSH_ONION}"
 else

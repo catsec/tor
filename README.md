@@ -47,12 +47,12 @@ The script creates four isolated hidden services:
 
 **Option 1: Run directly from GitHub**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/catsec/tor/main/setup.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/catsec/tor/refs/heads/main/setup.sh | sudo bash
 ```
 
 **Option 2: Download and run**
 ```bash
-wget https://raw.githubusercontent.com/catsec/tor/main/setup.sh
+wget https://raw.githubusercontent.com/catsec/tor/refs/heads/main/setup.sh
 sudo bash setup.sh
 ```
 
@@ -130,14 +130,15 @@ Web Admin Interface (separate .onion):
 
 ## 👥 User Management
 
-### Retrieving Admin Credentials
+### Retrieving All Credentials and URLs
 ```bash
-# View admin login credentials
+# Quick access to everything (installed by setup script)
+creds
+
+# Or manually view admin credentials
 sudo cat /var/lib/torstack-setup/admin_credentials.txt
 
-# Shows:
-# JID: admin@your-xmpp-onion.onion
-# Password: [your-22-character-password]
+# Shows all onion addresses, admin credentials, and connection info
 ```
 
 ### Creating Users
@@ -184,6 +185,15 @@ sudo bash setup.sh --redo prosody
 - `nologs` - Zero logging setup
 - `unattended` - Automatic updates
 - `cleanup` - Remove unnecessary services
+
+### Quick Credential Access
+```bash
+# Display all URLs and credentials (convenience script)
+creds
+
+# Or use full path
+/usr/local/bin/creds.sh
+```
 
 ### Logs and Debugging
 ```bash
