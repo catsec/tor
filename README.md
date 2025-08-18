@@ -19,21 +19,20 @@ A fully automated script to deploy a secure, privacy-focused XMPP server accessi
 - **Complete Tor Integration** - All services accessible only via .onion addresses
 - **XMPP with OMEMO** - End-to-end encrypted messaging with modern XMPP features
 - **Zero Logging** - Maximum privacy with no stored logs or traces
-- **Web Admin Interface** - Easy server management through Tor
+- **Command Line Admin** - Secure server management via prosodyctl
 - **File Transfers** - Secure file sharing via SOCKS5 proxy
-- **Service Isolation** - Four separate .onion addresses for security compartmentalization
+- **Service Isolation** - Three separate .onion addresses for security compartmentalization
 - **Idempotent Setup** - Safe to rerun, uses stamp files to track progress
 
 ## 🎯 Architecture
 
-The script creates four isolated hidden services:
+The script creates three isolated hidden services:
 
 | Service | Purpose | Access |
 |---------|---------|--------|
 | 🔑 SSH | Server administration | `ssh123abc.onion:22` |
 | 🌐 Web Demo | Public landing page | `http://web456def.onion/` |
 | 💬 XMPP | Messaging & file transfer | `xmpp789ghi.onion:5222/5269` |
-| ⚙️ Admin Panel | Web management interface | `http://admin012jkl.onion:5280/admin/` |
 
 ## 🚀 Quick Start
 
@@ -91,7 +90,7 @@ The script performs these steps automatically:
 - **Multi-User Chat** - Group messaging support
 - **File Transfers** - Secure file sharing via proxy65
 - **Message Archive Management** - Optional message history
-- **Web Admin Interface** - User management and server statistics
+- **Command Line Administration** - Secure user and server management
 
 ### Security Features
 
@@ -123,33 +122,38 @@ XMPP Connection (separate .onion):
    OMEMO encryption: Supported
    Use Tor proxy (SOCKS5: 127.0.0.1:9050)
 
-Web Admin Interface (separate .onion):
-   URL: http://admin012jkl.onion:5280/admin/
-   Login: admin@xmpp789ghi.onion (password from credentials file above)
+Admin Interface:
+   Command Line: prosodyctl (recommended)
+   Telnet: telnet 127.0.0.1 5582 (from server console)
+   Note: Web admin disabled for security
 ```
 
 ## 👥 User Management
 
-### Retrieving All Credentials and URLs
+### Retrieving All Information
 ```bash
 # Quick access to everything (installed by setup script)
-creds
+help
 
-# Or manually view admin credentials
-sudo cat /var/lib/torstack-setup/admin_credentials.txt
-
-# Shows all onion addresses, admin credentials, and connection info
+# Shows all onion addresses, admin credentials, and XMPP management commands
 ```
 
 ### Creating Users
 ```bash
-# Via command line
+# Add new user
 prosodyctl adduser username@xmpp789ghi.onion
 
-# Via web admin interface
-# 1. Navigate to http://admin012jkl.onion:5280/admin/
-# 2. Login with admin credentials from file above
-# 3. Go to Users section to add new accounts
+# Change user password
+prosodyctl passwd username@xmpp789ghi.onion
+
+# Delete user
+prosodyctl deluser username@xmpp789ghi.onion
+
+# List all users
+prosodyctl list users
+
+# Check server status
+prosodyctl status
 ```
 
 ### XMPP Client Setup
@@ -181,18 +185,35 @@ sudo bash setup.sh --redo prosody
 - `prosody` - XMPP server installation
 - `prosody_config` - Basic XMPP configuration
 - `prosody_onion` - .onion domain and SSL setup
+- `help_script` - Install help script with credentials and admin commands
 - `ufw` - Firewall configuration
 - `nologs` - Zero logging setup
 - `unattended` - Automatic updates
 - `cleanup` - Remove unnecessary services
 
-### Quick Credential Access
+### Quick Access
 ```bash
-# Display all URLs and credentials (convenience script)
-creds
+# Show all credentials and XMPP admin commands
+help
 
 # Or use full path
-/usr/local/bin/creds.sh
+/usr/local/bin/help.sh
+```
+
+### Server Administration
+```bash
+# User management
+prosodyctl adduser newuser@your-xmpp-onion.onion
+prosodyctl passwd user@your-xmpp-onion.onion
+prosodyctl deluser user@your-xmpp-onion.onion
+
+# Server management
+prosodyctl status
+prosodyctl start/stop/restart
+prosodyctl reload
+
+# Interactive admin console (from server)
+telnet 127.0.0.1 5582
 ```
 
 ### Logs and Debugging
@@ -221,7 +242,7 @@ cat /var/lib/tor/*/hostname
 - 📱 **Use secure clients** - Choose OMEMO-capable XMPP apps
 - 🔄 **Regular backups** - Backup .onion private keys if needed
 - 👥 **User management** - Only create accounts for trusted users
-- 🕵️ **Monitor usage** - Check admin panel for suspicious activity
+- 🕵️ **Monitor usage** - Use prosodyctl to check server status and logs
 
 ## 🚨 Disclaimer
 

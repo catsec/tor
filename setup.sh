@@ -213,7 +213,6 @@ if ! stamp "tor"; then
   install -d -m 700 -o debian-tor -g debian-tor /var/lib/tor/ssh_service
   install -d -m 700 -o debian-tor -g debian-tor /var/lib/tor/web_service
   install -d -m 700 -o debian-tor -g debian-tor /var/lib/tor/xmpp_service
-  install -d -m 700 -o debian-tor -g debian-tor /var/lib/tor/admin_service
 
   # Replace our managed blocks
   sed -i '/# BEGIN_CHATG_CONTROL/,/# END_CHATG_CONTROL/d' /etc/tor/torrc
@@ -238,10 +237,6 @@ HiddenServicePort 80 127.0.0.1:80
 HiddenServiceDir /var/lib/tor/xmpp_service/
 HiddenServicePort 5222 127.0.0.1:5222
 HiddenServicePort 5269 127.0.0.1:5269
-
-# Web Admin Hidden Service (separate .onion)
-HiddenServiceDir /var/lib/tor/admin_service/
-HiddenServicePort 5280 127.0.0.1:5280
 # END_CHATG_SERVICES
 EOF
   usermod -aG debian-tor "$SSH_USER"
@@ -253,7 +248,6 @@ else echo "[tor] skipped"; fi
 SSH_ONION="$(cat /var/lib/tor/ssh_service/hostname 2>/dev/null || true)"
 WEB_ONION="$(cat /var/lib/tor/web_service/hostname 2>/dev/null || true)"
 XMPP_ONION="$(cat /var/lib/tor/xmpp_service/hostname 2>/dev/null || true)"
-ADMIN_ONION="$(cat /var/lib/tor/admin_service/hostname 2>/dev/null || true)"
 
 # ---------- 40 nginx ----------
 if ! stamp "nginx"; then
@@ -313,8 +307,8 @@ EOF
 
   cat >/etc/nginx/sites-available/tor-darkpage <<EOF
 server {
-    listen 127.0.0.1:80;
-    server_name _;
+    listen 127.0.0.1:80 default_server;
+    server_name _ default;
 
     # Absolutely no logging
     access_log off;
@@ -338,8 +332,8 @@ server {
     }
 }
 EOF
-  # Remove default nginx site first
-  rm -f /etc/nginx/sites-enabled/default
+  # Remove default nginx site and any other sites
+  rm -f /etc/nginx/sites-enabled/*
   rm -f /etc/nginx/sites-available/default
   
   # Disable nginx access and error logging globally
@@ -373,14 +367,13 @@ if ! stamp "prosody"; then
   echo "=== [prosody] Install Prosody XMPP server ==="
   if apt install -y prosody lua-sec lua-dbi-sqlite3 lua-zlib; then
     # Install prosody-modules separately (may not be available on all Ubuntu versions)
-    apt install -y prosody-modules 2>/dev/null || log_warn "prosody-modules package not available, admin_web may not work"
+    apt install -y prosody-modules 2>/dev/null || log_warn "prosody-modules package not available, some modules may not work"
     PROSODY_INSTALLED=1
     # Create prosody data directory
     install -d -m 750 -o prosody -g prosody /var/lib/prosody
     # Hidden services are already configured in the tor step
-    # Just ensure the XMPP and admin service directories exist
+    # Just ensure the XMPP service directory exists
     install -d -m 700 -o debian-tor -g debian-tor /var/lib/tor/xmpp_service
-    install -d -m 700 -o debian-tor -g debian-tor /var/lib/tor/admin_service
     systemctl restart tor
     sleep 3
     mark "prosody"
@@ -392,7 +385,7 @@ else
   echo "[prosody] skipped"
 fi
 
-# XMPP_ONION and ADMIN_ONION are set above from hostname files
+# XMPP_ONION is set above from hostname files
 
 # ---------- 51 prosody config ----------
 if ! stamp "prosody_config" && [ $PROSODY_INSTALLED -eq 1 ]; then
@@ -441,17 +434,11 @@ modules_enabled = {
 
     -- OMEMO support
         "pubsub"; -- Required for OMEMO
-        "pep_simple"; -- Simple PEP implementation
 
     -- Admin interfaces
         "admin_adhoc"; -- Allows administration via an XMPP client that supports ad-hoc commands
         "admin_telnet"; -- Opens telnet console interface on localhost port 5582
-        "admin_web"; -- Web-based administration interface
 
-    -- HTTP modules
-        "bosh"; -- Enable BOSH clients, aka "Jabber over HTTP"
-        "websocket"; -- XMPP over WebSockets
-        "http_files"; -- Serve static files from a directory over HTTP
 
     -- Other specific functionality
         "posix"; -- POSIX functionality, sends server to background, enables syslog, etc.
@@ -482,24 +469,12 @@ log = {
     { levels = { min = "warn", max = "error" }, to = "file", filename = "/dev/null" };
 }
 
--- Disable HTTP access logging for web admin interface
-http_access_log = "/dev/null"
-http_error_log = "/dev/null"
 
 -- Pidfile, used by prosodyctl and the init.d script
 pidfile = "/var/run/prosody/prosody.pid"
 
--- HTTP server configuration
-http_ports = { 5280 }
-https_ports = { 5281 }
-
--- Configure the HTTP server to bind to localhost only
-http_interfaces = { "127.0.0.1" }
-https_interfaces = { "127.0.0.1" }
-
--- Admin web interface configuration
+-- Admin interface configuration  
 admin_interfaces = { "127.0.0.1" }
-admin_web_theme = "prosody"
 
 ---------- Virtual hosts ----------
 -- Define your .onion domain here once Tor generates it
@@ -612,9 +587,8 @@ EOF
     
     # Create admin user with random 22-character password
     ADMIN_PASSWORD="$(openssl rand -base64 33 | tr -d '=+/' | cut -c1-22)"
-    # Use expect-like approach or direct prosodyctl register
-    if printf '%s\n%s\n' "$ADMIN_PASSWORD" "$ADMIN_PASSWORD" | prosodyctl adduser "admin@$XMPP_ONION" 2>/dev/null || \
-       echo "admin@$XMPP_ONION:$ADMIN_PASSWORD" | prosodyctl register "admin@$XMPP_ONION" "$ADMIN_PASSWORD" 2>/dev/null; then
+    # Use printf to provide password non-interactively
+    if printf '%s\n%s\n' "$ADMIN_PASSWORD" "$ADMIN_PASSWORD" | prosodyctl adduser "admin@$XMPP_ONION" 2>/dev/null; then
       log "Admin user created: admin@$XMPP_ONION"
       # Store credentials securely
       echo "JID: admin@$XMPP_ONION" > "$STAMPDIR/admin_credentials.txt"
@@ -641,96 +615,99 @@ else
   [ $PROSODY_INSTALLED -eq 0 ] && echo "[prosody_onion] skipped (prosody not installed)" || echo "[prosody_onion] skipped"
 fi
 
-# ---------- 55 creds_script ----------
-if ! stamp "creds_script"; then
-  echo "=== [creds_script] Create credentials display script ==="
+# ---------- 55 help_script ----------
+if ! stamp "help_script"; then
+  echo "=== [help_script] Create help script with credentials and admin commands ==="
   
-  cat >/usr/local/bin/creds.sh <<'EOF'
+  cat >/usr/local/bin/help.sh <<'EOF'
 #!/usr/bin/env bash
-# Display all Tor onion addresses and XMPP admin credentials
+# Tor Server Help - Credentials and XMPP Management
 
 set -e
 
-echo "====== TOR SERVER CREDENTIALS ======"
+echo "====== TOR SERVER HELP ======"
 echo
 
-# Read onion addresses (need sudo for tor directories)
+# Read onion addresses and config
 SSH_ONION="$(sudo cat /var/lib/tor/ssh_service/hostname 2>/dev/null || echo "pending")"
 WEB_ONION="$(sudo cat /var/lib/tor/web_service/hostname 2>/dev/null || echo "pending")"
 XMPP_ONION="$(sudo cat /var/lib/tor/xmpp_service/hostname 2>/dev/null || echo "pending")"
-ADMIN_ONION="$(sudo cat /var/lib/tor/admin_service/hostname 2>/dev/null || echo "pending")"
+SSH_USER="$(sudo cat /var/lib/torstack-setup/env 2>/dev/null | grep SSH_USER | cut -d'"' -f2 2>/dev/null || echo "unknown")"
 
-echo "🔗 ONION ADDRESSES:"
-echo "  SSH:     ${SSH_ONION}"
-echo "  Web:     ${WEB_ONION}"
-echo "  XMPP:    ${XMPP_ONION}"
-echo "  Admin:   ${ADMIN_ONION}"
-echo
-
-echo "🔑 SSH ACCESS:"
+echo "🔗 SERVER ACCESS:"
 if [ "$SSH_ONION" != "pending" ]; then
-  SSH_USER="$(sudo cat /var/lib/torstack-setup/env 2>/dev/null | grep SSH_USER | cut -d'"' -f2 || echo "unknown")"
-  echo "  torsocks ssh -p 22 ${SSH_USER}@${SSH_ONION}"
+  echo "  SSH:     torsocks ssh -p 22 ${SSH_USER}@${SSH_ONION}"
 else
-  echo "  <waiting for SSH onion address>"
+  echo "  SSH:     <waiting for onion address>"
 fi
-echo
-
-echo "🌐 WEB ACCESS:"
 if [ "$WEB_ONION" != "pending" ]; then
-  echo "  http://${WEB_ONION}/"
+  echo "  Web:     http://${WEB_ONION}/"
 else
-  echo "  <waiting for web onion address>"
+  echo "  Web:     <waiting for onion address>"
+fi
+if [ "$XMPP_ONION" != "pending" ]; then
+  echo "  XMPP:    ${XMPP_ONION}:5222 (clients), :5269 (server)"
+else
+  echo "  XMPP:    <waiting for onion address>"
 fi
 echo
 
-if dpkg -s prosody >/dev/null 2>&1; then
-  echo "💬 XMPP SERVER:"
-  if [ "$XMPP_ONION" != "pending" ]; then
-    echo "  Server: ${XMPP_ONION}"
-    echo "  Port:   5222 (client), 5269 (server)"
-    echo "  MUC:    conference.${XMPP_ONION}"
-    echo "  Proxy:  proxy.${XMPP_ONION}"
-  else
-    echo "  <waiting for XMPP onion address>"
-  fi
-  echo
-
+if dpkg -s prosody >/dev/null 2>&1 && [ "$XMPP_ONION" != "pending" ]; then
   echo "👤 ADMIN CREDENTIALS:"
   if [ -f "/var/lib/torstack-setup/admin_credentials.txt" ]; then
     sudo cat /var/lib/torstack-setup/admin_credentials.txt
   else
-    echo "  ERROR: Admin credentials not found!"
     echo "  Create manually: prosodyctl adduser admin@${XMPP_ONION}"
   fi
   echo
 
-  echo "⚙️ WEB ADMIN:"
-  if [ "$ADMIN_ONION" != "pending" ]; then
-    echo "  URL: http://${ADMIN_ONION}:5280/admin/"
-    echo "  Login with admin credentials above"
-  else
-    echo "  <waiting for admin onion address>"
-  fi
+  echo "👥 USER MANAGEMENT:"
+  echo "  prosodyctl adduser user@${XMPP_ONION}    # Create user"
+  echo "  prosodyctl passwd user@${XMPP_ONION}     # Change password"
+  echo "  prosodyctl deluser user@${XMPP_ONION}    # Delete user"
+  echo "  prosodyctl list users                    # List all users"
+  echo
+
+  echo "🔧 SERVER ADMIN:"
+  echo "  prosodyctl status                        # Server status"
+  echo "  prosodyctl restart                       # Restart server"
+  echo "  prosodyctl check                         # Check config"
+  echo "  telnet 127.0.0.1 5582                   # Admin console"
+  echo
+
+  echo "💬 CLIENT SETUP:"
+  echo "  Server:   ${XMPP_ONION}"
+  echo "  Port:     5222"
+  echo "  Security: OMEMO encryption (recommended)"
+  echo "  Proxy:    SOCKS5 127.0.0.1:9050 (Tor)"
+  echo "  MUC:      conference.${XMPP_ONION}"
+  echo
+
+  echo "📝 QUICK EXAMPLES:"
+  echo "  # Add a user"
+  echo "  prosodyctl adduser alice@${XMPP_ONION}"
+  echo
+  echo "  # Check online users"
+  echo "  prosodyctl shell -c 'print(get_stats().c2s.sessions)'"
   echo
 fi
 
-echo "📝 USAGE NOTES:"
-echo "  • All access requires Tor Browser or SOCKS5 proxy (127.0.0.1:9050)"
-echo "  • XMPP clients should use OMEMO encryption"
-echo "  • Create users: prosodyctl adduser username@${XMPP_ONION}"
+echo "🔐 SECURITY:"
+echo "  • All access via Tor only (maximum privacy)"
+echo "  • No logs stored anywhere"
+echo "  • OMEMO end-to-end encryption"
+echo "  • Web admin disabled for security"
 echo
+
 echo "======================================"
 EOF
 
-  chmod +x /usr/local/bin/creds.sh
+  chmod +x /usr/local/bin/help.sh
+  ln -sf /usr/local/bin/help.sh /usr/local/bin/help
   
-  # Create symlink for easier access
-  ln -sf /usr/local/bin/creds.sh /usr/local/bin/creds
-  
-  log "Credentials display script created at /usr/local/bin/creds.sh"
-  mark "creds_script"
-else echo "[creds_script] skipped"; fi
+  log "Combined help script created at /usr/local/bin/help.sh"
+  mark "help_script"
+else echo "[help_script] skipped"; fi
 
 # ---------- 60 ufw ----------
 if ! stamp "ufw"; then
@@ -847,7 +824,6 @@ echo "  SSH:     ${SSH_ONION:-pending}"
 echo "  Web:     ${WEB_ONION:-pending}"
 if dpkg -s prosody >/dev/null 2>&1; then
   echo "  XMPP:    ${XMPP_ONION:-pending}"
-  echo "  Admin:   ${ADMIN_ONION:-pending}"
 fi
 
 echo
@@ -887,7 +863,7 @@ echo
 log "Setup completed successfully"
 echo "====== DONE ======"
 echo
-echo "💡 Quick Access: Run 'creds' or 'creds.sh' anytime to display all URLs and credentials"
+echo "💡 Quick Access: Run 'help' for credentials and admin commands"
 echo
 if [ -n "${SSH_ONION:-}" ]; then
   echo "SSH via Tor:  torsocks ssh -p 22 ${SSH_USER}@${SSH_ONION}"
@@ -921,14 +897,10 @@ if [ $PROSODY_INSTALLED -eq 1 ] && [ -n "${XMPP_ONION:-}" ]; then
   echo "   OMEMO encryption: Supported"
   echo "   Use Tor proxy (SOCKS5: 127.0.0.1:9050)"
   echo
-  echo "Web Admin Interface (separate .onion):"
-  if [ -n "${ADMIN_ONION:-}" ]; then
-    echo "   URL: http://$ADMIN_ONION:5280/admin/"
-  else
-    echo "   URL: <waiting for admin onion address>"
-  fi
-  echo "   Login: admin@$XMPP_ONION (use admin credentials above)"
-  echo "   Note: If web admin doesn't work, use: prosodyctl for command-line administration"
+  echo "Admin Interface:"
+  echo "   Telnet: telnet 127.0.0.1 5582 (from server console)"
+  echo "   Command Line: prosodyctl (recommended)"
+  echo "   Note: Web admin interface disabled for security"
   echo
   echo "Create additional users: prosodyctl adduser username@$XMPP_ONION"
 fi
