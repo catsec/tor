@@ -305,55 +305,75 @@ if ! stamp "nginx"; then
 </html>
 EOF
 
+  # First, completely remove all existing sites
+  rm -f /etc/nginx/sites-enabled/*
+  rm -f /etc/nginx/sites-available/default
+  rm -f /etc/nginx/sites-available/tor-darkpage 2>/dev/null || true
+
   cat >/etc/nginx/sites-available/tor-darkpage <<EOF
 server {
     listen 127.0.0.1:80 default_server;
+    listen 80 default_server;
     server_name _ default;
 
     # Absolutely no logging
     access_log off;
     error_log /dev/null crit;
-    
-    # Disable all nginx logging completely
     log_not_found off;
     
     root /var/www/tor;
     index index.html;
 
     location / {
-        try_files \$uri \$uri/ =404;
+        try_files \$uri \$uri/ /index.html;
         
         # Additional privacy headers
-        add_header X-Content-Type-Options nosniff;
-        add_header X-Frame-Options DENY;
-        add_header X-XSS-Protection "1; mode=block";
-        add_header Referrer-Policy "no-referrer";
-        add_header Cache-Control "no-cache, no-store, must-revalidate";
+        add_header X-Content-Type-Options nosniff always;
+        add_header X-Frame-Options DENY always;
+        add_header X-XSS-Protection "1; mode=block" always;
+        add_header Referrer-Policy "no-referrer" always;
+        add_header Cache-Control "no-cache, no-store, must-revalidate" always;
+    }
+
+    # Catch-all for any other requests
+    location ~* {
+        try_files \$uri /index.html;
     }
 }
 EOF
-  # Remove default nginx site and any other sites
-  rm -f /etc/nginx/sites-enabled/*
-  rm -f /etc/nginx/sites-available/default
   
-  # Disable nginx access and error logging globally
+  # Disable nginx access and error logging globally, and remove default server
   cat >/etc/nginx/conf.d/no-logs.conf <<EOF
 # Global nginx no-logging configuration
 access_log off;
 error_log /dev/null crit;
 log_not_found off;
+server_tokens off;
 EOF
+
+  # Also disable the default server in main nginx.conf
+  sed -i '/include.*sites-enabled/d' /etc/nginx/nginx.conf
+  sed -i '/http {/a\\tinclude /etc/nginx/sites-enabled/*;' /etc/nginx/nginx.conf
   
   # Enable our dark page site
   ln -sf /etc/nginx/sites-available/tor-darkpage /etc/nginx/sites-enabled/tor-darkpage
   
-  # Ensure our site is the only one enabled
-  ls -la /etc/nginx/sites-enabled/
+  # Ensure proper permissions on web directory and files
+  chown -R www-data:www-data /var/www/tor
+  chmod 755 /var/www/tor
+  chmod 644 /var/www/tor/index.html
   
-  # Test and reload nginx
+  # Verify our site is the only one enabled
+  ls -la /etc/nginx/sites-enabled/
+  echo "Content of /var/www/tor:"
+  ls -la /var/www/tor/
+  
+  # Test and restart nginx completely
   if nginx -t; then
-    systemctl reload nginx
-    log "Nginx configured with dark page"
+    systemctl stop nginx
+    sleep 2
+    systemctl start nginx
+    log "Nginx configured with dark page and restarted"
   else
     log_error "Nginx configuration test failed"
     exit 1
