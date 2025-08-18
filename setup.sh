@@ -316,20 +316,39 @@ server {
     listen 127.0.0.1:80;
     server_name _;
 
+    # Absolutely no logging
     access_log off;
     error_log /dev/null crit;
-
+    
+    # Disable all nginx logging completely
+    log_not_found off;
+    
     root /var/www/tor;
     index index.html;
 
     location / {
         try_files \$uri \$uri/ =404;
+        
+        # Additional privacy headers
+        add_header X-Content-Type-Options nosniff;
+        add_header X-Frame-Options DENY;
+        add_header X-XSS-Protection "1; mode=block";
+        add_header Referrer-Policy "no-referrer";
+        add_header Cache-Control "no-cache, no-store, must-revalidate";
     }
 }
 EOF
   # Remove default nginx site first
   rm -f /etc/nginx/sites-enabled/default
   rm -f /etc/nginx/sites-available/default
+  
+  # Disable nginx access and error logging globally
+  cat >/etc/nginx/conf.d/no-logs.conf <<EOF
+# Global nginx no-logging configuration
+access_log off;
+error_log /dev/null crit;
+log_not_found off;
+EOF
   
   # Enable our dark page site
   ln -sf /etc/nginx/sites-available/tor-darkpage /etc/nginx/sites-enabled/tor-darkpage
@@ -462,6 +481,10 @@ log = {
     { levels = { min = "debug", max = "info" }, to = "file", filename = "/dev/null" };
     { levels = { min = "warn", max = "error" }, to = "file", filename = "/dev/null" };
 }
+
+-- Disable HTTP access logging for web admin interface
+http_access_log = "/dev/null"
+http_error_log = "/dev/null"
 
 -- Pidfile, used by prosodyctl and the init.d script
 pidfile = "/var/run/prosody/prosody.pid"
@@ -660,7 +683,8 @@ journalctl --vacuum-time=1s >/dev/null 2>&1 || true
 rm -f /var/log/prosody/* 2>/dev/null || true
 rm -f /tmp/prosody* 2>/dev/null || true
 
-# Clear nginx logs (just in case)
+# Clear nginx logs completely
+rm -f /var/log/nginx/* 2>/dev/null || true
 truncate -s 0 /var/log/nginx/* 2>/dev/null || true
 
 # Clear any auth logs
