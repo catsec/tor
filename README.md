@@ -1,12 +1,12 @@
 # Tor-Only XMPP Server Setup
 
 ```
-███╗   ██╗ ██████╗ ████████╗██╗  ██╗██╗███╗   ██╗ ██████╗     ██╗███████╗    ██╗      ██████╗  ██████╗  ██████╗ ███████╗██████╗ 
-████╗  ██║██╔═══██╗╚══██╔══╝██║  ██║██║████╗  ██║██╔════╝     ██║██╔════╝    ██║     ██╔═══██╗██╔════╝ ██╔════╝ ██╔════╝██╔══██╗
-██╔██╗ ██║██║   ██║   ██║   ███████║██║██╔██╗ ██║██║  ███╗    ██║███████╗    ██║     ██║   ██║██║  ███╗██║  ███╗█████╗  ██║  ██║
-██║╚██╗██║██║   ██║   ██║   ██╔══██║██║██║╚██╗██║██║   ██║    ██║╚════██║    ██║     ██║   ██║██║   ██║██║   ██║██╔══╝  ██║  ██║
-██║ ╚████║╚██████╔╝   ██║   ██║  ██║██║██║ ╚████║╚██████╔╝    ██║███████║    ███████╗╚██████╔╝╚██████╔╝╚██████╔╝███████╗██████╔╝
-╚═╝  ╚═══╝ ╚═════╝    ╚═╝   ╚═╝  ╚═╝╚═╝╚═╝  ╚═══╝ ╚═════╝     ╚═╝╚══════╝    ╚══════╝ ╚═════╝  ╚═════╝  ╚═════╝ ╚══════╝╚═════╝ 
+███╗   ██╗ ██████╗     ██╗      ██████╗  ██████╗ ███████╗
+████╗  ██║██╔═══██╗    ██║     ██╔═══██╗██╔════╝ ██╔════╝
+██╔██╗ ██║██║   ██║    ██║     ██║   ██║██║  ███╗███████╗
+██║╚██╗██║██║   ██║    ██║     ██║   ██║██║   ██║╚════██║
+██║ ╚████║╚██████╔╝    ███████╗╚██████╔╝╚██████╔╝███████║
+╚═╝  ╚═══╝ ╚═════╝     ╚══════╝ ╚═════╝  ╚═════╝ ╚══════╝
 ```
 
 ## 🚫 ZERO LOGGING POLICY
@@ -45,18 +45,25 @@ The script creates four isolated hidden services:
 
 ### Installation
 
-1. **Clone the repository:**
+**Option 1: Run directly from GitHub**
 ```bash
-git clone https://github.com/your-username/tor-xmpp-setup.git
-cd tor-xmpp-setup
+curl -fsSL https://raw.githubusercontent.com/catsec/tor/main/setup.sh | sudo bash
 ```
 
-2. **Run the setup script:**
+**Option 2: Download and run**
 ```bash
+wget https://raw.githubusercontent.com/catsec/tor/main/setup.sh
 sudo bash setup.sh
 ```
 
-3. **Follow the prompts:**
+**Option 3: Clone the repository**
+```bash
+git clone https://github.com/catsec/tor.git
+cd tor
+sudo bash setup.sh
+```
+
+**Follow the prompts:**
 - Enter your non-root username for SSH access
 - Provide your GitHub username for SSH key retrieval
 - Choose whether to continue via SSH after initial setup
