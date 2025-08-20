@@ -47,9 +47,9 @@ if [ $TEST_CONNECTIVITY -eq 1 ]; then
   echo "=== CONNECTIVITY TEST MODE ==="
   # Test Tor connectivity
   if curl --socks5-hostname 127.0.0.1:9050 -s --connect-timeout 10 http://check.torproject.org | grep -q "Congratulations"; then
-    echo "✓ Tor connectivity: WORKING"
+    echo "[OK] Tor connectivity: WORKING"
   else
-    echo "✗ Tor connectivity: FAILED"
+    echo "[FAIL] Tor connectivity: FAILED"
   fi
   
   # Test onion services
@@ -78,33 +78,33 @@ if [ $TEST_CONNECTIVITY -eq 1 ]; then
     if [ -n "$XMPP_ONION" ] && [ "$XMPP_ONION" != "not found" ]; then
       # Test c2s port (5222)
       if timeout 5 bash -c "echo '' | nc -w 2 127.0.0.1 5222" >/dev/null 2>&1; then
-        echo "  XMPP c2s (5222): ✓ LISTENING"
+        echo "  XMPP c2s (5222): [OK] LISTENING"
       else
-        echo "  XMPP c2s (5222): ✗ NOT RESPONDING"
+        echo "  XMPP c2s (5222): [FAIL] NOT RESPONDING"
       fi
       
       # Test s2s port (5269)  
       if timeout 5 bash -c "echo '' | nc -w 2 127.0.0.1 5269" >/dev/null 2>&1; then
-        echo "  XMPP s2s (5269): ✓ LISTENING"
+        echo "  XMPP s2s (5269): [OK] LISTENING"
       else
-        echo "  XMPP s2s (5269): ✗ NOT RESPONDING"
+        echo "  XMPP s2s (5269): [FAIL] NOT RESPONDING"
       fi
       
       # Test telnet admin interface
       if timeout 5 bash -c "echo '' | nc -w 2 127.0.0.1 5582" >/dev/null 2>&1; then
-        echo "  XMPP admin (5582): ✓ LISTENING"
+        echo "  XMPP admin (5582): [OK] LISTENING"
       else
-        echo "  XMPP admin (5582): ✗ NOT RESPONDING"  
+        echo "  XMPP admin (5582): [FAIL] NOT RESPONDING"  
       fi
       
       # Test XMPP via Tor (basic connectivity)
       if timeout 10 torsocks nc -w 5 "$XMPP_ONION" 5222 </dev/null >/dev/null 2>&1; then
-        echo "  XMPP via Tor: ✓ REACHABLE"
+        echo "  XMPP via Tor: [OK] REACHABLE"
       else
-        echo "  XMPP via Tor: ✗ UNREACHABLE"
+        echo "  XMPP via Tor: [FAIL] UNREACHABLE"
       fi
     else
-      echo "  XMPP: ✗ No .onion address found"
+      echo "  XMPP: [FAIL] No .onion address found"
     fi
   fi
   
@@ -123,14 +123,14 @@ if [ -n "$BACKUP_RESTORE" ]; then
     if [ -f "$STAMPDIR/backup-checksum.txt" ]; then
       echo "Verifying backup integrity..."
       if ! sha256sum -c "$STAMPDIR/backup-checksum.txt" >/dev/null 2>&1; then
-        echo "⚠️ WARNING: Backup checksum verification failed"
+        echo "[WARN] WARNING: Backup checksum verification failed"
         read -rp "Continue anyway? [y/N]: " CONTINUE_RESTORE
         if [[ ! "$CONTINUE_RESTORE" =~ ^[Yy]$ ]]; then
           echo "Restore cancelled"
           exit 1
         fi
       else
-        echo "✓ Backup integrity verified"
+        echo "[OK] Backup integrity verified"
       fi
     fi
     
@@ -164,7 +164,7 @@ if [ -n "$BACKUP_RESTORE" ]; then
   RESTORE_CMD="$RESTORE_CMD -pass pass:$BACKUP_RESTORE -in $BACKUP_FILE"
   
   if $RESTORE_CMD | tar -xzf - -C / 2>/dev/null; then
-    echo "✓ Backup restored successfully"
+    echo "[OK] Backup restored successfully"
     
     # Fix permissions
     if [ -d /var/lib/tor ]; then
@@ -178,16 +178,16 @@ if [ -n "$BACKUP_RESTORE" ]; then
       chmod 600 "$USER_HOME/.ssh/authorized_keys" 2>/dev/null || true
     fi
     
-    echo "✓ Services restarting..."
+    echo "[OK] Services restarting..."
     systemctl start tor ssh 2>/dev/null || true
     sleep 2
     
-    echo "✓ Restore complete"
+    echo "[OK] Restore complete"
     echo "Your .onion addresses should be the same as before"
     echo "SSH keys have been restored"
     
   else
-    echo "✗ Failed to restore backup"
+    echo "[FAIL] Failed to restore backup"
     echo "Possible causes:"
     echo "  - Wrong password"
     echo "  - Corrupted backup file"
@@ -204,44 +204,44 @@ if [ $VERIFY_CONFIG -eq 1 ]; then
   
   echo "Validating SSH configuration..."
   if ! sshd -t 2>/dev/null; then
-    echo "✗ SSH configuration error"
+    echo "[FAIL] SSH configuration error"
     ERRORS=$((ERRORS + 1))
   else
-    echo "✓ SSH configuration valid"
+    echo "[OK] SSH configuration valid"
   fi
   
   echo "Validating Tor configuration..."
   if ! tor --verify-config -f /etc/tor/torrc 2>/dev/null; then
-    echo "✗ Tor configuration error"
+    echo "[FAIL] Tor configuration error"
     ERRORS=$((ERRORS + 1))
   else
-    echo "✓ Tor configuration valid"
+    echo "[OK] Tor configuration valid"
   fi
   
   echo "Validating Nginx configuration..."
   if ! nginx -t 2>/dev/null; then
-    echo "✗ Nginx configuration error"
+    echo "[FAIL] Nginx configuration error"
     ERRORS=$((ERRORS + 1))
   else
-    echo "✓ Nginx configuration valid"
+    echo "[OK] Nginx configuration valid"
   fi
   
   if command -v prosody >/dev/null 2>&1; then
     echo "Validating Prosody configuration..."
     if ! prosodyctl check config 2>/dev/null; then
-      echo "✗ Prosody configuration error"
+      echo "[FAIL] Prosody configuration error"
       ERRORS=$((ERRORS + 1))
     else
-      echo "✓ Prosody configuration valid"
+      echo "[OK] Prosody configuration valid"
     fi
   fi
   
   echo "Validating UFW configuration..."
   if ! ufw --dry-run status >/dev/null 2>&1; then
-    echo "✗ UFW configuration error"
+    echo "[FAIL] UFW configuration error"
     ERRORS=$((ERRORS + 1))
   else
-    echo "✓ UFW configuration valid"
+    echo "[OK] UFW configuration valid"
   fi
   
   echo "Validating system hardening..."
@@ -250,17 +250,17 @@ if [ $VERIFY_CONFIG -eq 1 ]; then
   [ ! -f /etc/apt/apt.conf.d/95tor ] && HARDENING_ISSUES=$((HARDENING_ISSUES + 1))
   
   if [ $HARDENING_ISSUES -gt 0 ]; then
-    echo "✗ $HARDENING_ISSUES hardening configuration issues found"
+    echo "[FAIL] $HARDENING_ISSUES hardening configuration issues found"
     ERRORS=$((ERRORS + 1))
   else
-    echo "✓ System hardening configuration valid"
+    echo "[OK] System hardening configuration valid"
   fi
   
   echo
   if [ $ERRORS -eq 0 ]; then
     echo "🎉 All configurations are valid!"
   else
-    echo "⚠️ Found $ERRORS configuration errors"
+    echo "[WARN] Found $ERRORS configuration errors"
     echo "Run 'setup.sh --redo <step>' to fix specific issues"
   fi
   
@@ -270,7 +270,7 @@ fi
 if [ $WIPE_DATA -eq 1 ]; then
   echo "=== EMERGENCY DATA WIPE MODE ==="
   echo
-  echo "⚠️  WARNING: This will PERMANENTLY destroy all data on this server!"
+  echo "[WARN]  WARNING: This will PERMANENTLY destroy all data on this server!"
   echo "    - All .onion private keys will be lost"
   echo "    - SSH keys will be wiped"
   echo "    - All XMPP data will be destroyed"  
@@ -345,9 +345,9 @@ if [ $DIAGNOSE_NGINX -eq 1 ]; then
   
   echo "1. Checking nginx status..."
   if systemctl is-active nginx >/dev/null 2>&1; then
-    echo "✓ Nginx is running"
+    echo "[OK] Nginx is running"
   else
-    echo "✗ Nginx is not running"
+    echo "[FAIL] Nginx is not running"
     echo "  Starting nginx..."
     systemctl start nginx
   fi
@@ -355,9 +355,9 @@ if [ $DIAGNOSE_NGINX -eq 1 ]; then
   echo
   echo "2. Checking nginx configuration..."
   if nginx -t 2>/dev/null; then
-    echo "✓ Nginx configuration is valid"
+    echo "[OK] Nginx configuration is valid"
   else
-    echo "✗ Nginx configuration has errors:"
+    echo "[FAIL] Nginx configuration has errors:"
     nginx -t
   fi
   
@@ -369,37 +369,37 @@ if [ $DIAGNOSE_NGINX -eq 1 ]; then
   echo
   echo "4. Checking custom site configuration..."
   if [ -f "/etc/nginx/sites-available/tor-darkpage" ]; then
-    echo "✓ Custom dark page configuration exists"
+    echo "[OK] Custom dark page configuration exists"
     if [ -L "/etc/nginx/sites-enabled/tor-darkpage" ]; then
-      echo "✓ Custom dark page is enabled"
+      echo "[OK] Custom dark page is enabled"
     else
-      echo "✗ Custom dark page is NOT enabled"
+      echo "[FAIL] Custom dark page is NOT enabled"
       echo "  Fix: ln -sf /etc/nginx/sites-available/tor-darkpage /etc/nginx/sites-enabled/"
     fi
   else
-    echo "✗ Custom dark page configuration missing"
+    echo "[FAIL] Custom dark page configuration missing"
   fi
   
   echo
   echo "5. Checking web content..."
   if [ -f "/var/www/tor/index.html" ]; then
-    echo "✓ Custom index.html exists"
+    echo "[OK] Custom index.html exists"
     if grep -q "DARK NET" /var/www/tor/index.html; then
-      echo "✓ Custom content found in index.html"
+      echo "[OK] Custom content found in index.html"
     else
-      echo "✗ Custom content missing from index.html"
+      echo "[FAIL] Custom content missing from index.html"
     fi
   else
-    echo "✗ Custom index.html missing"
+    echo "[FAIL] Custom index.html missing"
   fi
   
   echo
   echo "6. Testing HTTP response..."
   HTTP_RESPONSE=$(curl -s --connect-timeout 5 http://127.0.0.1 2>/dev/null || echo "NO_RESPONSE")
   if echo "$HTTP_RESPONSE" | grep -q "DARK NET"; then
-    echo "✓ Custom dark page is being served correctly"
+    echo "[OK] Custom dark page is being served correctly"
   else
-    echo "✗ Custom dark page is NOT being served"
+    echo "[FAIL] Custom dark page is NOT being served"
     echo "  Current response (first 200 chars):"
     echo "$HTTP_RESPONSE" | head -c 200
     echo
@@ -427,22 +427,22 @@ if [ $TEST_LEAKS -eq 1 ]; then
   echo "1. Testing for active non-Tor connections..."
   ACTIVE_CONNECTIONS=$(netstat -tupln 2>/dev/null | grep "ESTABLISHED" | grep -v "127.0.0.1:905[0-1]" | grep -v "127.0.0.1" | grep -v "::1")
   if [ -n "$ACTIVE_CONNECTIONS" ]; then
-    echo "⚠️  Active external connections found:"
+    echo "[WARN]  Active external connections found:"
     echo "$ACTIVE_CONNECTIONS"
     LEAKS_FOUND=$((LEAKS_FOUND + 1))
   else
-    echo "✓ No active external connections"
+    echo "[OK] No active external connections"
   fi
   
   echo
   echo "2. Testing for services listening on external interfaces..."
   EXTERNAL_LISTENERS=$(ss -lntp | awk '/^LISTEN/ && !/127\.0\.0\.1/ && !/::1/ {print}' 2>/dev/null)
   if [ -n "$EXTERNAL_LISTENERS" ]; then
-    echo "⚠️  Services listening on external interfaces:"
+    echo "[WARN]  Services listening on external interfaces:"
     echo "$EXTERNAL_LISTENERS"
     LEAKS_FOUND=$((LEAKS_FOUND + 1))
   else
-    echo "✓ All services bound to localhost only"
+    echo "[OK] All services bound to localhost only"
   fi
   
   echo
@@ -456,12 +456,12 @@ if [ $TEST_LEAKS -eq 1 ]; then
   done
   
   if [ -n "$PROBLEM_SERVICES" ]; then
-    echo "⚠️  Services that could leak traffic are running:"
+    echo "[WARN]  Services that could leak traffic are running:"
     for service in $PROBLEM_SERVICES; do
       echo "    - $service ($(systemctl is-active "$service" 2>/dev/null))"
     done
   else
-    echo "✓ All problematic services are disabled"
+    echo "[OK] All problematic services are disabled"
   fi
   
   echo
@@ -469,11 +469,11 @@ if [ $TEST_LEAKS -eq 1 ]; then
   if [ -f /etc/resolv.conf ]; then
     NON_LOCAL_DNS=$(grep "nameserver" /etc/resolv.conf | grep -v "127.0.0.1" | wc -l)
     if [ "$NON_LOCAL_DNS" -gt 0 ]; then
-      echo "⚠️  Non-localhost DNS servers in /etc/resolv.conf:"
+      echo "[WARN]  Non-localhost DNS servers in /etc/resolv.conf:"
       grep "nameserver" /etc/resolv.conf | grep -v "127.0.0.1"
       LEAKS_FOUND=$((LEAKS_FOUND + 1))
     else
-      echo "✓ DNS configured for localhost only"
+      echo "[OK] DNS configured for localhost only"
     fi
   fi
   
@@ -481,13 +481,13 @@ if [ $TEST_LEAKS -eq 1 ]; then
   echo "5. Testing APT proxy configuration..."
   if [ -f /etc/apt/apt.conf.d/95tor ]; then
     if grep -q "socks5h://127.0.0.1:9050" /etc/apt/apt.conf.d/95tor; then
-      echo "✓ APT configured to use Tor proxy"
+      echo "[OK] APT configured to use Tor proxy"
     else
-      echo "⚠️  APT proxy configuration may be incorrect"
+      echo "[WARN]  APT proxy configuration may be incorrect"
       LEAKS_FOUND=$((LEAKS_FOUND + 1))
     fi
   else
-    echo "⚠️  APT not configured to use Tor proxy"
+    echo "[WARN]  APT not configured to use Tor proxy"
     LEAKS_FOUND=$((LEAKS_FOUND + 1))
   fi
   
@@ -496,54 +496,54 @@ if [ $TEST_LEAKS -eq 1 ]; then
   if command -v snap >/dev/null 2>&1; then
     SNAP_COUNT=$(snap list 2>/dev/null | wc -l)
     if [ "$SNAP_COUNT" -gt 1 ]; then  # snap list always shows header
-      echo "⚠️  Snap packages installed (can bypass proxy):"
+      echo "[WARN]  Snap packages installed (can bypass proxy):"
       snap list 2>/dev/null | tail -n +2
       LEAKS_FOUND=$((LEAKS_FOUND + 1))
     else
-      echo "✓ No snap packages installed"
+      echo "[OK] No snap packages installed"
     fi
   else
-    echo "✓ Snapd not available"
+    echo "[OK] Snapd not available"
   fi
   
   echo
   echo "7. Testing time synchronization..."
   if systemctl is-active systemd-timesyncd >/dev/null 2>&1; then
-    echo "⚠️  systemd-timesyncd is active (can leak NTP queries)"
+    echo "[WARN]  systemd-timesyncd is active (can leak NTP queries)"
     LEAKS_FOUND=$((LEAKS_FOUND + 1))
   elif systemctl is-active chrony >/dev/null 2>&1; then
-    echo "⚠️  chrony is active (can leak NTP queries)"
+    echo "[WARN]  chrony is active (can leak NTP queries)"
     LEAKS_FOUND=$((LEAKS_FOUND + 1))
   elif systemctl is-active ntp >/dev/null 2>&1; then
-    echo "⚠️  ntp is active (can leak NTP queries)"
+    echo "[WARN]  ntp is active (can leak NTP queries)"
     LEAKS_FOUND=$((LEAKS_FOUND + 1))
   else
-    echo "✓ No time sync services active (manual time sync required)"
+    echo "[OK] No time sync services active (manual time sync required)"
   fi
   
   echo
   echo "8. Testing for Ubuntu telemetry..."
   if [ -f /etc/ubuntu-advantage/uaclient.conf ]; then
-    echo "⚠️  Ubuntu Advantage client configuration exists"
+    echo "[WARN]  Ubuntu Advantage client configuration exists"
     LEAKS_FOUND=$((LEAKS_FOUND + 1))
   else
-    echo "✓ No Ubuntu Advantage configuration"
+    echo "[OK] No Ubuntu Advantage configuration"
   fi
   
   if [ -f /etc/default/motd-news ] && grep -q "ENABLED=1" /etc/default/motd-news; then
-    echo "⚠️  MOTD news is enabled (fetches Ubuntu ads)"
+    echo "[WARN]  MOTD news is enabled (fetches Ubuntu ads)"
     LEAKS_FOUND=$((LEAKS_FOUND + 1))
   else
-    echo "✓ MOTD news disabled"
+    echo "[OK] MOTD news disabled"
   fi
   
   echo
   echo "========================================="
   if [ $LEAKS_FOUND -eq 0 ]; then
-    echo "✅ LEAK TEST PASSED - No network leaks detected"
-    echo "✅ System appears to be properly configured for Tor-only operation"
+    echo "[PASS] LEAK TEST PASSED - No network leaks detected"
+    echo "[PASS] System appears to be properly configured for Tor-only operation"
   else
-    echo "⚠️  LEAK TEST FAILED - $LEAKS_FOUND potential issues found"
+    echo "[WARN]  LEAK TEST FAILED - $LEAKS_FOUND potential issues found"
     echo
     echo "RECOMMENDED FIXES:"
     echo "  1. Run: sudo bash setup.sh --redo system_hardening"
@@ -576,7 +576,7 @@ fail_with_suggestion() {
   local suggestion="$2"
   log_error "$error_msg"
   echo "💡 SUGGESTION: $suggestion" | tee -a "$LOGFILE"
-  echo "📋 For more help: setup.sh --help" | tee -a "$LOGFILE"
+  echo "[INFO] For more help: setup.sh --help" | tee -a "$LOGFILE"
   exit 1
 }
 
@@ -782,7 +782,7 @@ EOF
     chown "$SSH_USER:$SSH_USER" "$USER_HOME/.ssh/authorized_keys"
     chmod 600 "$USER_HOME/.ssh/authorized_keys"
     log "SSH public key added successfully"
-    echo "✓ SSH key added successfully!"
+    echo "[OK] SSH key added successfully!"
   else
     fail_with_suggestion "Invalid SSH key format provided" "Ensure key starts with ssh-ed25519, ssh-rsa, or ecdsa-sha2-*. Re-run with --redo early_ssh to try again."
   fi
@@ -939,9 +939,9 @@ EOF
     chmod 600 "$STAMPDIR/backup-checksum.txt"
     
     log "Complete Tor server backup created: $STAMPDIR/tor-server-backup.tar.gz.enc"
-    echo "  ✓ Secure backup created with AES-256-GCM encryption"
-    echo "  ✓ Backup includes: .onion keys, SSH keys, Tor config"
-    echo "  ✓ Password stored in: $STAMPDIR/backup-info.txt"
+    echo "  [OK] Secure backup created with AES-256-GCM encryption"
+    echo "  [OK] Backup includes: .onion keys, SSH keys, Tor config"
+    echo "  [OK] Password stored in: $STAMPDIR/backup-info.txt"
   else
     log_warn "Failed to create secure backup"
   fi
@@ -1090,9 +1090,9 @@ EOF
     
     # Verify our custom page is being served
     if curl -s --connect-timeout 5 http://127.0.0.1 | grep -q "DARK NET"; then
-      log "✓ Nginx configured with custom dark page successfully"
+      log "[OK] Nginx configured with custom dark page successfully"
     else
-      log_warn "⚠ Custom dark page may not be loading properly"
+      log_warn "[WARN] Custom dark page may not be loading properly"
       echo "  Testing nginx response:"
       curl -s --connect-timeout 5 http://127.0.0.1 | head -10 || echo "  No response from nginx"
     fi
@@ -1410,14 +1410,14 @@ if dpkg -s prosody >/dev/null 2>&1 && [ "$XMPP_ONION" != "pending" ]; then
   echo "  prosodyctl list users                    # List all users"
   echo
 
-  echo "🔧 SERVER ADMIN:"
+  echo "[ADMIN] SERVER ADMIN:"
   echo "  prosodyctl status                        # Server status"
   echo "  prosodyctl restart                       # Restart server"
   echo "  prosodyctl check                         # Check config"
   echo "  telnet 127.0.0.1 5582                   # Admin console"
   echo
 
-  echo "💬 CLIENT SETUP:"
+  echo "CLIENT SETUP:"
   echo "  Server:   ${XMPP_ONION}"
   echo "  Port:     5222"
   echo "  Security: OMEMO encryption (recommended)"
@@ -1434,7 +1434,7 @@ if dpkg -s prosody >/dev/null 2>&1 && [ "$XMPP_ONION" != "pending" ]; then
   echo
 fi
 
-echo "🔧 SYSTEM MANAGEMENT:"
+echo "[ADMIN] SYSTEM MANAGEMENT:"
 echo "  setup.sh --test-connectivity             # Test all connections"
 echo "  tor-monitor.sh                           # Run health check once"
 echo "  systemctl status tor-monitor.timer       # Check monitoring status"
@@ -1442,7 +1442,7 @@ echo "  cat /var/lib/torstack-setup/alerts.txt   # View system alerts"
 echo "  setup.sh --help                          # Show all options"
 echo
 
-echo "💾 BACKUP & RECOVERY:"
+echo "[BACKUP] BACKUP & RECOVERY:"
 if [ -f "/var/lib/torstack-setup/backup-info.txt" ]; then
   echo "  Backup info: /var/lib/torstack-setup/backup-info.txt"
   echo "  Backup file: /var/lib/torstack-setup/tor-server-backup.tar.gz.enc"
@@ -1460,13 +1460,13 @@ else
 fi
 
 echo
-echo "🗑️ SECURE CLEANUP:"
+echo "[CLEANUP] SECURE CLEANUP:"
 echo "  Wipe free space: shred -vfz -n 3 /path/to/sensitive/files"
 echo "  Emergency wipe: dd if=/dev/urandom of=/dev/sdX bs=1M"
 echo "  Memory wipe: sync && echo 3 > /proc/sys/vm/drop_caches"
 echo
 
-echo "🔐 SECURITY:"
+echo "[SECURITY] SECURITY:"
 echo "  • All access via Tor only (maximum privacy)"
 echo "  • No logs stored anywhere"
 echo "  • OMEMO end-to-end encryption"
@@ -1475,34 +1475,34 @@ echo "  • Web admin disabled for security"
 # Check EDR/OSSEC status
 if command -v /var/ossec/bin/ossec-control >/dev/null 2>&1; then
   echo
-  echo "🛡️ ENDPOINT DETECTION & RESPONSE (EDR):"
+  echo "[EDR] ENDPOINT DETECTION & RESPONSE (EDR):"
   if /var/ossec/bin/ossec-control status >/dev/null 2>&1; then
-    echo "  • OSSEC HIDS: ✓ Running (monitoring system integrity)"
-    echo "  • File Integrity: ✓ Active (Tor keys, configs, system files)"
-    echo "  • Rootkit Detection: ✓ Active (scanning for malware)"
-    echo "  • Process Monitoring: ✓ Active (suspicious activity detection)"
+    echo "  • OSSEC HIDS: [OK] Running (monitoring system integrity)"
+    echo "  • File Integrity: [OK] Active (Tor keys, configs, system files)"
+    echo "  • Rootkit Detection: [OK] Active (scanning for malware)"
+    echo "  • Process Monitoring: [OK] Active (suspicious activity detection)"
     
     # Check XMPP alerting status
     if systemctl is-active ossec-xmpp-alerts.timer >/dev/null 2>&1; then
-      echo "  • XMPP Alerts: ✓ Active (security notifications enabled)"
+      echo "  • XMPP Alerts: [OK] Active (security notifications enabled)"
       if [ -f "/var/lib/torstack-setup/xmpp-alerts.conf" ]; then
         XMPP_ENABLED=$(grep "enabled=" /var/lib/torstack-setup/xmpp-alerts.conf 2>/dev/null | cut -d= -f2)
         if [ "$XMPP_ENABLED" = "true" ]; then
           echo "    Configure: /var/lib/torstack-setup/xmpp-alerts.conf"
         else
-          echo "    Status: ⚠️ Configured but disabled"
+          echo "    Status: [WARN] Configured but disabled"
           echo "    Configure: /var/lib/torstack-setup/xmpp-alerts.conf"
         fi
       fi
     else
-      echo "  • XMPP Alerts: ✗ Not running"
+      echo "  • XMPP Alerts: [FAIL] Not running"
     fi
     
-    echo "  • Custom Rules: ✓ Tor server specific detection rules"
+    echo "  • Custom Rules: [OK] Tor server specific detection rules"
     echo "  • Alert Log: /var/lib/torstack-setup/alerts.txt"
     echo "  • Manual Check: /usr/local/bin/ossec-xmpp-alert.py"
   else
-    echo "  • OSSEC HIDS: ✗ Not running"
+    echo "  • OSSEC HIDS: [FAIL] Not running"
   fi
 fi
 
@@ -1719,13 +1719,13 @@ get_tor_time() {
     esac
     
     if [ -n "$UNIX_TIME" ] && [ -n "$DATETIME" ]; then
-      echo "✓ Got time from: $api"
+      echo "[OK] Got time from: $api"
       echo "  Remote time: $DATETIME"
       return 0
     fi
   done
   
-  echo "✗ Failed to get time from any API"
+  echo "[FAIL] Failed to get time from any API"
   return 1
 }
 
@@ -1740,24 +1740,24 @@ if get_tor_time; then
   echo "Time drift: ${DRIFT} seconds"
   
   if [ $ABS_DRIFT -gt 300 ]; then
-    echo "🚨 CRITICAL: Clock drift >5 minutes - Tor will fail!"
+    echo "[CRITICAL] CRITICAL: Clock drift >5 minutes - Tor will fail!"
     SYNC_NEEDED=1
   elif [ $ABS_DRIFT -gt 60 ]; then
-    echo "⚠️  WARNING: Clock drift >1 minute - sync recommended"
+    echo "[WARN]  WARNING: Clock drift >1 minute - sync recommended"
     SYNC_NEEDED=1
   else
-    echo "✅ Clock drift acceptable ($DRIFT seconds)"
+    echo "[PASS] Clock drift acceptable ($DRIFT seconds)"
     SYNC_NEEDED=0
   fi
   
   if [ $SYNC_NEEDED -eq 1 ] || [ "${1:-}" = "--force" ]; then
     echo "Syncing system time..."
     if date -s "$DATETIME" >/dev/null 2>&1; then
-      echo "✅ System time synced: $(date)"
+      echo "[PASS] System time synced: $(date)"
       
       # Sync hardware clock
       if command -v hwclock >/dev/null 2>&1; then
-        hwclock -w 2>/dev/null && echo "✅ Hardware clock synced"
+        hwclock -w 2>/dev/null && echo "[PASS] Hardware clock synced"
       fi
       
       # Restart Tor to refresh with new time
@@ -1766,17 +1766,17 @@ if get_tor_time; then
       sleep 3
       
       if systemctl is-active tor >/dev/null; then
-        echo "✅ Tor restarted successfully"
+        echo "[PASS] Tor restarted successfully"
       else
-        echo "⚠️  Tor restart failed - check systemctl status tor"
+        echo "[WARN]  Tor restart failed - check systemctl status tor"
       fi
     else
-      echo "✗ Failed to set system time"
+      echo "[FAIL] Failed to set system time"
       exit 1
     fi
   fi
 else
-  echo "✗ Cannot sync time - no network connectivity via Tor"
+  echo "[FAIL] Cannot sync time - no network connectivity via Tor"
   exit 1
 fi
 EOF
@@ -1864,7 +1864,7 @@ EOF
     
     # Install OSSEC
     if ./install.sh; then
-      echo "  ✓ OSSEC installed successfully"
+      echo "  [OK] OSSEC installed successfully"
       
       # Configure OSSEC for Tor server monitoring
       cat > /var/ossec/etc/ossec.conf <<'EOF'
@@ -2249,7 +2249,7 @@ class XMPPAlerter:
             
         try:
             # Format alert message
-            severity = "🚨 CRITICAL" if alert['level'] >= 10 else "⚠️ WARNING"
+            severity = "[CRITICAL] CRITICAL" if alert['level'] >= 10 else "[WARN] WARNING"
             message = f"""{severity} TOR SERVER ALERT
 
 Rule: {alert['rule_id']} (Level {alert['level']})
@@ -2403,7 +2403,7 @@ if ! stamp "system_hardening"; then
   echo "  Waiting for Tor bootstrap..."
   for i in {1..30}; do
     if curl --socks5-hostname 127.0.0.1:9050 -s --connect-timeout 5 http://check.torproject.org >/dev/null 2>&1; then
-      echo "  ✓ Tor is bootstrapped and working"
+      echo "  [OK] Tor is bootstrapped and working"
       break
     fi
     echo "  Waiting for Tor bootstrap... ($i/30)"
@@ -2756,8 +2756,8 @@ EOF
   # Restart services with new configurations
   systemctl restart systemd-resolved || true
   
-  log "✓ All network services configured for Tor-only operation"
-  log "✓ Disabled services that could bypass Tor proxy"
+  log "[OK] All network services configured for Tor-only operation"
+  log "[OK] Disabled services that could bypass Tor proxy"
   mark "system_hardening"
 else echo "[system_hardening] skipped"; fi
 
@@ -2901,24 +2901,24 @@ echo "[8] Security Verification - Tor-only hardening:"
 echo "  Checking no services listen on external interfaces..."
 EXTERNAL_LISTENERS=$(ss -lntp | awk '/^LISTEN/ && !/127\.0\.0\.1/ && !/::1/ {print}' || true)
 if [ -n "$EXTERNAL_LISTENERS" ]; then
-  echo "  ⚠️  WARNING: Found services listening on external interfaces:"
+  echo "  [WARN]  WARNING: Found services listening on external interfaces:"
   echo "$EXTERNAL_LISTENERS" | sed 's/^/    /'
   echo "  This violates Tor-only policy!"
 else
-  echo "  ✓ All services properly bound to localhost only"
+  echo "  [OK] All services properly bound to localhost only"
 fi
 
-echo "  APT Tor proxy: $(grep -q 'socks5h://127.0.0.1:9050' /etc/apt/apt.conf.d/95tor 2>/dev/null && echo '✓ Configured' || echo '✗ Missing')"
-echo "  IPv6 disabled: $(sysctl -n net.ipv6.conf.all.disable_ipv6 2>/dev/null | grep -q 1 && echo '✓ Yes' || echo '✗ No')"
-echo "  Outbound blocking: $(ufw status | grep -q 'Status: active' && echo '✓ UFW Active' || echo '✗ UFW Inactive')"
+echo "  APT Tor proxy: $(grep -q 'socks5h://127.0.0.1:9050' /etc/apt/apt.conf.d/95tor 2>/dev/null && echo '[OK] Configured' || echo '[FAIL] Missing')"
+echo "  IPv6 disabled: $(sysctl -n net.ipv6.conf.all.disable_ipv6 2>/dev/null | grep -q 1 && echo '[OK] Yes' || echo '[FAIL] No')"
+echo "  Outbound blocking: $(ufw status | grep -q 'Status: active' && echo '[OK] UFW Active' || echo '[FAIL] UFW Inactive')"
 
 # Check secure boot status
 SECUREBOOT_STATUS="Unknown"
 if [ -f /sys/firmware/efi/efivars/SecureBoot-* ] 2>/dev/null; then
   if mokutil --sb-state 2>/dev/null | grep -q "SecureBoot enabled"; then
-    SECUREBOOT_STATUS="✓ Enabled"
+    SECUREBOOT_STATUS="[OK] Enabled"
   else
-    SECUREBOOT_STATUS="⚠️ Disabled"
+    SECUREBOOT_STATUS="[WARN] Disabled"
   fi
 elif [ ! -d /sys/firmware/efi ]; then
   SECUREBOOT_STATUS="N/A (Legacy BIOS)"
@@ -2926,15 +2926,15 @@ fi
 echo "  Secure Boot: $SECUREBOOT_STATUS"
 
 # Check if kernel hardening is active
-KASLR_STATUS="$(grep -q 'randomize_va_space.*2' /proc/sys/kernel/randomize_va_space 2>/dev/null && echo '✓ Enabled' || echo '⚠️ Disabled')"
+KASLR_STATUS="$(grep -q 'randomize_va_space.*2' /proc/sys/kernel/randomize_va_space 2>/dev/null && echo '[OK] Enabled' || echo '[WARN] Disabled')"
 echo "  KASLR: $KASLR_STATUS"
 
 # Check MAC randomization
-MAC_RANDOM_STATUS="$([ -f /etc/systemd/network/99-mac-randomization.link ] && echo '✓ Configured' || echo '⚠️ Not configured')"
+MAC_RANDOM_STATUS="$([ -f /etc/systemd/network/99-mac-randomization.link ] && echo '[OK] Configured' || echo '[WARN] Not configured')"
 echo "  MAC randomization: $MAC_RANDOM_STATUS"
 
 # Check bridge status
-BRIDGE_STATUS="$(grep -q 'UseBridges 1' /etc/tor/torrc 2>/dev/null && echo '✓ Enabled' || echo 'Disabled')"
+BRIDGE_STATUS="$(grep -q 'UseBridges 1' /etc/tor/torrc 2>/dev/null && echo '[OK] Enabled' || echo 'Disabled')"
 echo "  Tor bridges: $BRIDGE_STATUS"
 
 # Check disk encryption status
@@ -2944,19 +2944,19 @@ check_disk_encryption() {
   # Check for LUKS encrypted root
   ROOT_DEVICE=$(findmnt -n -o SOURCE /)
   if cryptsetup isLuks "$ROOT_DEVICE" 2>/dev/null; then
-    echo "  Root filesystem: ✓ LUKS encrypted"
+    echo "  Root filesystem: [OK] LUKS encrypted"
     return 0
   fi
   
   # Check if root is on encrypted LVM
   if echo "$ROOT_DEVICE" | grep -q "/dev/mapper/" && dmsetup table "$ROOT_DEVICE" 2>/dev/null | grep -q "crypt"; then
-    echo "  Root filesystem: ✓ Encrypted (dm-crypt)"
+    echo "  Root filesystem: [OK] Encrypted (dm-crypt)"
     return 0
   fi
   
   # Check for other encryption indicators
   if lsblk -f | grep -q "crypto_LUKS"; then
-    echo "  Root filesystem: ⚠️ Partial encryption detected"
+    echo "  Root filesystem: [WARN] Partial encryption detected"
     echo "    Some disks are encrypted, but root may not be"
     return 1
   fi
@@ -2973,7 +2973,7 @@ check_disk_encryption || ENCRYPTION_STATUS=$?
 if swapon --show=NAME --noheadings 2>/dev/null | while read -r swap_device; do
   if [ -n "$swap_device" ]; then
     if echo "$swap_device" | grep -q "/dev/mapper/" && dmsetup table "$swap_device" 2>/dev/null | grep -q "crypt"; then
-      echo "  Swap: ✓ Encrypted"
+      echo "  Swap: [OK] Encrypted"
     else
       echo "  Swap: ❌ NOT ENCRYPTED - may leak sensitive data"
       exit 1
@@ -2993,7 +2993,7 @@ fi
 
 if [ $ENCRYPTION_STATUS -gt 0 ]; then
   echo
-  echo "  🚨 CRITICAL: Your system has unencrypted storage!"
+  echo "  [CRITICAL] CRITICAL: Your system has unencrypted storage!"
   echo "     - SSH private keys can be recovered from disk"
   echo "     - .onion private keys are exposed" 
   echo "     - XMPP conversations may be recoverable"
@@ -3007,8 +3007,8 @@ log "Setup completed successfully"
 echo "====== DONE ======"
 echo
 echo "💡 Quick Access: Run 'info' for credentials and admin commands"
-echo "📊 Monitoring: System health checked every 5 minutes (tor-monitor.timer)"
-echo "🔍 Testing: Run 'setup.sh --test-connectivity' to verify all services"
+echo "[MONITOR] Monitoring: System health checked every 5 minutes (tor-monitor.timer)"
+echo "[TEST] Testing: Run 'setup.sh --test-connectivity' to verify all services"
 echo
 if [ -n "${SSH_ONION:-}" ]; then
   echo "SSH via Tor:  torsocks ssh -p 22 ${SSH_USER}@${SSH_ONION}"

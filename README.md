@@ -9,12 +9,12 @@
 ╚═╝  ╚═══╝ ╚═════╝     ╚══════╝ ╚═════╝  ╚═════╝ ╚══════╝
 ```
 
-## 🚫 ZERO LOGGING POLICY
+## ZERO LOGGING POLICY
 **THIS SYSTEM LOGS ABSOLUTELY NOTHING. NO TRACES. NO RECORDS. MAXIMUM PRIVACY.**
 
 A fully automated script to deploy a secure, privacy-focused XMPP server accessible only via Tor hidden services on Ubuntu 24.04.3 LTS.
 
-## 🔐 Features
+## Features
 
 - **Complete Tor Integration** - All services accessible only via .onion addresses
 - **XMPP with OMEMO** - End-to-end encrypted messaging with modern XMPP features
@@ -24,17 +24,17 @@ A fully automated script to deploy a secure, privacy-focused XMPP server accessi
 - **Service Isolation** - Three separate .onion addresses for security compartmentalization
 - **Idempotent Setup** - Safe to rerun, uses stamp files to track progress
 
-## 🎯 Architecture
+## Architecture
 
 The script creates three isolated hidden services:
 
 | Service | Purpose | Access |
 |---------|---------|--------|
-| 🔑 SSH | Server administration | `ssh123abc.onion:22` |
-| 🌐 Web Demo | Public landing page | `http://web456def.onion/` |
-| 💬 XMPP | Messaging & file transfer | `xmpp789ghi.onion:5222/5269` |
+| SSH | Server administration | `ssh123abc.onion:22` |
+| Web Demo | Public landing page | `http://web456def.onion/` |
+| XMPP | Messaging & file transfer | `xmpp789ghi.onion:5222/5269` |
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 
@@ -42,7 +42,7 @@ The script creates three isolated hidden services:
 - Root access
 - SSH client on your local machine (Linux/macOS/Windows)
 
-**⚠️ CRITICAL: Install Ubuntu with full disk encryption (LUKS) during setup. The script will warn if disk encryption is missing.**
+**WARNING CRITICAL: Install Ubuntu with full disk encryption (LUKS) during setup. The script will warn if disk encryption is missing.**
 
 ### Installation
 
@@ -71,7 +71,7 @@ sudo bash setup.sh
 - Choose enhanced anonymity options (Tor bridges)
 - Choose whether to continue via SSH after initial setup
 
-## 📋 Setup Process
+## Setup Process
 
 The script performs these steps automatically:
 
@@ -88,7 +88,7 @@ The script performs these steps automatically:
 11. **Zero Logging** - Disables all system and service logging
 12. **Firewall Setup** - Configures UFW for Tor-only access
 
-## 🔐 SSH Key Setup
+## SSH Key Setup
 
 The script now includes an interactive SSH key setup that eliminates the need for GitHub accounts:
 
@@ -108,16 +108,16 @@ The script now includes an interactive SSH key setup that eliminates the need fo
 - **Local key generation** - Keys never leave your machine until you explicitly provide them
 - **Validation** - Script ensures key format is correct before proceeding
 
-## 💾 Disk Encryption Requirements
+## Disk Encryption Requirements
 
 ### **Why Full Disk Encryption is Critical**
 
 Without full disk encryption, your Tor server provides **zero privacy protection**:
 
-- 🔓 **SSH private keys** can be recovered from disk
-- 🔓 **.onion private keys** are exposed to anyone with disk access  
-- 🔓 **XMPP conversations** may be recoverable from swap/temp files
-- 🔓 **Server compromise** exposes all historical data
+- UNENCRYPTED **SSH private keys** can be recovered from disk
+- UNENCRYPTED **.onion private keys** are exposed to anyone with disk access  
+- UNENCRYPTED **XMPP conversations** may be recoverable from swap/temp files
+- UNENCRYPTED **Server compromise** exposes all historical data
 
 ### **Ubuntu Installation with Encryption**
 
@@ -143,15 +143,15 @@ The script automatically checks disk encryption and will show:
 
 ```
 [9] Disk Encryption Status:
-  Root filesystem: ✓ LUKS encrypted  
-  Swap: ✓ Encrypted
+  Root filesystem: OK LUKS encrypted  
+  Swap: OK Encrypted
 ```
 
 **If you see encryption warnings:**
-- 🚨 **Stop immediately** - Your privacy is compromised
-- 💾 **Back up .onion keys**: `sudo cp -r /var/lib/tor /backup/location`
-- 🔄 **Reinstall with encryption** following the guide above
-- 📥 **Restore .onion keys** using backup/restore feature
+- CRITICAL **Stop immediately** - Your privacy is compromised
+- BACKUP **Back up .onion keys**: `sudo cp -r /var/lib/tor /backup/location`
+- RESTORE **Reinstall with encryption** following the guide above
+- **Restore .onion keys** using backup/restore feature
 
 ### **What the Script Does for Disk Security**
 
@@ -162,7 +162,7 @@ The script automatically checks disk encryption and will show:
 5. **Secures** temporary file handling
 6. **Warns** about any unencrypted storage
 
-## 🔧 Configuration
+## Configuration
 
 ### XMPP Features
 
@@ -197,8 +197,11 @@ The script automatically checks disk encryption and will show:
 - **Service Leak Prevention** - Blocks 15+ Ubuntu services that bypass proxy settings
 - **Network Leak Detection** - Built-in testing for services that might contact internet directly
 - **Ubuntu Telemetry Blocking** - Disables Ubuntu Advantage, snap store, crash reporting, MOTD ads
+- **Automatic Time Synchronization** - Daily time sync via Tor to prevent clock drift issues
+- **Comprehensive Leak Testing** - 8-point verification system for zero-leak operation
+- **Time Drift Monitoring** - Real-time monitoring of clock accuracy (critical for Tor)
 
-## 📊 After Installation
+## After Installation
 
 The script provides connection details for all services:
 
@@ -262,7 +265,7 @@ Configure any OMEMO-capable XMPP client:
 - **Encryption:** OMEMO (recommended)
 - **Proxy:** SOCKS5 127.0.0.1:9050 (Tor)
 
-## 🛠️ Advanced Usage
+## Advanced Usage
 
 ### Rerunning the Script
 ```bash
@@ -327,23 +330,23 @@ systemctl status tor prosody nginx ssh
 cat /var/lib/tor/*/hostname
 ```
 
-## 🔐 Security Considerations
+## Security Considerations
 
 ### What This Script Does for Privacy
-- ✅ **No external connectivity** - Services only accessible via Tor
-- ✅ **Zero logging** - No traces left on the system
-- ✅ **Service isolation** - Each service on separate .onion
-- ✅ **Strong encryption** - OMEMO for messages, TLS for transport
-- ✅ **Automatic updates** - Security patches applied automatically
+- YES **No external connectivity** - Services only accessible via Tor
+- YES **Zero logging** - No traces left on the system
+- YES **Service isolation** - Each service on separate .onion
+- YES **Strong encryption** - OMEMO for messages, TLS for transport
+- YES **Automatic updates** - Security patches applied automatically
 
 ### What You Should Do
-- 🔑 **Secure your SSH keys** - Keep private keys safe
-- 📱 **Use secure clients** - Choose OMEMO-capable XMPP apps
-- 🔄 **Regular backups** - Backup .onion private keys if needed
-- 👥 **User management** - Only create accounts for trusted users
-- 🕵️ **Monitor usage** - Use prosodyctl to check server status and logs
+- SSH **Secure your SSH keys** - Keep private keys safe
+- MOBILE **Use secure clients** - Choose OMEMO-capable XMPP apps
+- RESTORE **Regular backups** - Backup .onion private keys if needed
+- **User management** - Only create accounts for trusted users
+- MONITOR **Monitor usage** - Use prosodyctl to check server status and logs
 
-## 🚨 Disclaimer
+## Disclaimer
 
 This software is provided for educational and privacy purposes. Users are responsible for:
 - Complying with local laws and regulations
@@ -353,7 +356,7 @@ This software is provided for educational and privacy purposes. Users are respon
 
 The authors are not responsible for misuse or legal consequences.
 
-## 🤝 Contributing
+## Contributing
 
 Contributions are welcome! Please:
 1. Fork the repository
@@ -361,11 +364,11 @@ Contributions are welcome! Please:
 3. Test your changes thoroughly
 4. Submit a pull request
 
-## 📄 License
+## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
 
-## 🔧 Management & Monitoring
+## Management & Monitoring
 
 ### **Built-in Tools**
 ```bash
@@ -405,7 +408,7 @@ sudo cat /var/lib/torstack-setup/backup-password.txt
 sudo bash setup.sh --restore-backup <password>
 ```
 
-**⚠️ CRITICAL:** Save the backup password in a secure location. Without it, you cannot restore your .onion addresses.
+**WARNING CRITICAL:** Save the backup password in a secure location. Without it, you cannot restore your .onion addresses.
 
 ### **Troubleshooting**
 
@@ -455,6 +458,24 @@ sudo rm -f /etc/nginx/sites-enabled/default*
 sudo systemctl restart nginx
 ```
 
+**Time Synchronization Issues:**
+```bash
+# Check if time drift is causing Tor failures
+tor-time-sync.sh
+
+# Manual time sync if automatic sync fails
+sudo date -s "$(curl -s --socks5-hostname 127.0.0.1:9050 http://worldtimeapi.org/api/timezone/UTC | grep -o '"datetime":"[^"]*' | cut -d'"' -f4)"
+
+# Restart Tor after time correction
+sudo systemctl restart tor
+
+# Check time sync cron jobs
+cat /etc/crontab | grep time-sync
+
+# Common time-related Tor errors to watch for:
+sudo journalctl -u tor | grep -i "time\|clock\|consensus"
+```
+
 **Network Leak Detection:**
 ```bash
 # Test for services bypassing Tor
@@ -471,7 +492,23 @@ sudo bash setup.sh --test-leaks
 # - Ubuntu telemetry services
 ```
 
-## 🛡️ Endpoint Detection & Response (EDR)
+**Time Synchronization Management:**
+```bash
+# Check current time drift
+tor-time-sync.sh
+
+# Force time synchronization via Tor
+tor-time-sync.sh --force
+
+# View time sync logs
+tail -f /var/log/tor-time-sync.log
+
+# Time sync runs automatically:
+# - Daily at 3 AM (checks drift, syncs if needed)
+# - Weekly at 4 AM Sunday (forced sync)
+```
+
+## Endpoint Detection & Response (EDR)
 
 The script automatically installs and configures OSSEC HIDS for advanced threat detection:
 
@@ -511,13 +548,13 @@ systemctl status ossec-xmpp-alerts.timer
 
 ### **Threat Detection Rules**
 The EDR system includes custom rules for:
-- 🚨 **Critical**: Tor private key access attempts
-- 🚨 **Critical**: Tor daemon termination  
-- 🚨 **Critical**: SSH brute force attacks
-- ⚠️ **Warning**: Configuration file modifications
-- ⚠️ **Warning**: New user account creation
-- 🚨 **Critical**: Services listening on external interfaces
-- 🚨 **Critical**: Suspicious process execution
+- CRITICAL **Critical**: Tor private key access attempts
+- CRITICAL **Critical**: Tor daemon termination  
+- CRITICAL **Critical**: SSH brute force attacks
+- WARNING **Warning**: Configuration file modifications
+- WARNING **Warning**: New user account creation
+- CRITICAL **Critical**: Services listening on external interfaces
+- CRITICAL **Critical**: Suspicious process execution
 
 ### **EDR Management**
 ```bash
@@ -537,7 +574,77 @@ sudo tail -f /var/ossec/logs/alerts/alerts.log
 sudo systemctl restart ossec ossec-xmpp-alerts.timer
 ```
 
-## 🆘 Support
+## Important Caveats & Limitations
+
+### **Time Synchronization**
+- **No NTP services** - All time sync services are disabled to prevent leaks
+- **Manual time management** - System relies on daily Tor-based time sync
+- **Clock drift impact** - Tor fails with >5 minutes drift, becomes unreliable with >1 minute
+- **Automatic solution** - Daily cron jobs sync time via Tor APIs
+
+### **System Updates**
+- **Manual updates only** - Automatic updates disabled for security
+- **APT via Tor** - All package updates go through Tor (slower but private)
+- **Regular maintenance required** - Run `apt update && apt upgrade` monthly
+
+### **Performance Considerations**  
+- **Tor latency** - All connections 3-10x slower than direct
+- **Limited bandwidth** - Tor network capacity constraints
+- **CPU overhead** - Tor encryption uses additional CPU resources
+
+### **Emergency Recovery**
+- **Physical access may be required** - If Tor fails, SSH becomes unreachable
+- **No remote monitoring** - External uptime services cannot be used
+- **Time-sensitive issues** - Clock drift can cause complete connectivity loss
+
+### **Zero-Leak Design**
+- **15+ services disabled** - Ubuntu telemetry, updates, error reporting blocked
+- **Tor-only networking** - Firewall blocks all direct internet access  
+- **No backup services** - System designed for ephemeral operation
+- **Verification tools** - Built-in leak detection tests all traffic paths
+
+## Command Reference
+
+### **Setup & Maintenance**
+```bash
+sudo bash setup.sh                      # Full installation
+sudo bash setup.sh --force              # Force reinstall all components
+sudo bash setup.sh --redo <step>        # Reinstall specific step
+sudo bash setup.sh --help               # Show all options
+```
+
+### **Diagnostic & Testing**
+```bash
+sudo bash setup.sh --test-connectivity  # Test Tor and service connectivity
+sudo bash setup.sh --test-leaks         # Comprehensive leak detection
+sudo bash setup.sh --diagnose-nginx     # Debug custom page issues
+sudo bash setup.sh --verify-config      # Validate configurations
+```
+
+### **System Information**
+```bash
+info                                     # Show all server info and credentials
+tor-monitor.sh                          # Manual health check
+tor-time-sync.sh                        # Check/sync time via Tor
+cat /var/lib/torstack-setup/alerts.txt  # View security alerts
+```
+
+### **XMPP Management**
+```bash
+prosodyctl adduser user@your-onion.onion # Add XMPP user
+prosodyctl passwd user@your-onion.onion  # Change user password
+prosodyctl deluser user@your-onion.onion # Delete user
+prosodyctl status                        # Check XMPP server status
+```
+
+### **Emergency Commands**
+```bash
+sudo bash setup.sh --wipe-data          # Secure data wipe (DESTRUCTIVE)
+sudo bash setup.sh --restore-backup     # Restore from encrypted backup
+systemctl status tor ssh nginx prosody  # Check service status
+```
+
+## Support
 
 - **Issues:** Use GitHub Issues for bug reports
 - **Security:** Report security issues privately via email
@@ -546,4 +653,4 @@ sudo systemctl restart ossec ossec-xmpp-alerts.timer
 
 ---
 
-**⚠️ Remember:** This creates a Tor-only server. All access requires Tor Browser or proper SOCKS5 proxy configuration.
+**WARNING Remember:** This creates a Tor-only server. All access requires Tor Browser or proper SOCKS5 proxy configuration.
