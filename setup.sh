@@ -1621,6 +1621,36 @@ check_external_listeners || FAILED=$((FAILED + 1))
 # Check EDR system
 check_edr_system || FAILED=$((FAILED + 1))
 
+# Check time drift (critical for Tor operation)
+check_time_drift() {
+  # Get time from internet via Tor
+  TOR_TIME=$(curl -s --connect-timeout 15 --socks5-hostname 127.0.0.1:9050 \
+    "http://worldtimeapi.org/api/timezone/UTC" 2>/dev/null | \
+    grep -o '"unixtime":[0-9]*' | cut -d':' -f2)
+  
+  if [ -n "$TOR_TIME" ]; then
+    LOCAL_TIME=$(date +%s)
+    DRIFT=$(( TOR_TIME - LOCAL_TIME ))
+    ABS_DRIFT=${DRIFT#-}  # Absolute value
+    
+    if [ $ABS_DRIFT -gt 300 ]; then  # 5+ minutes
+      log_alert "CRITICAL clock drift: ${DRIFT}s - Tor will fail soon"
+      return 1
+    elif [ $ABS_DRIFT -gt 60 ]; then  # 1+ minutes  
+      log_alert "WARNING clock drift: ${DRIFT}s - sync time soon"
+      return 1
+    else
+      log_ok "Clock drift acceptable: ${DRIFT}s"
+      return 0
+    fi
+  else
+    log_alert "Cannot check time drift - network or Tor issue"
+    return 1
+  fi
+}
+
+check_time_drift || FAILED=$((FAILED + 1))
+
 # Check for unauthorized network connections
 check_tor_only_connections() {
   # Check for any non-Tor outbound connections
@@ -1651,6 +1681,116 @@ exit $FAILED
 EOF
 
   chmod +x /usr/local/bin/tor-monitor.sh
+  
+  # Create time sync utility
+  cat >/usr/local/bin/tor-time-sync.sh <<'EOF'
+#!/usr/bin/env bash
+# Tor Time Synchronization Utility
+# Syncs system time via Tor to prevent clock drift issues
+
+echo "Checking current time drift..."
+
+# Multiple time APIs for reliability
+TIME_APIS=(
+  "http://worldtimeapi.org/api/timezone/UTC"
+  "http://timeapi.io/api/Time/current/zone?timeZone=UTC"
+  "http://worldclockapi.com/api/json/utc/now"
+)
+
+get_tor_time() {
+  for api in "${TIME_APIS[@]}"; do
+    echo "Trying: $api"
+    case "$api" in
+      *worldtimeapi.org*)
+        TIME_DATA=$(curl -s --connect-timeout 15 --socks5-hostname 127.0.0.1:9050 "$api" 2>/dev/null)
+        UNIX_TIME=$(echo "$TIME_DATA" | grep -o '"unixtime":[0-9]*' | cut -d':' -f2)
+        DATETIME=$(echo "$TIME_DATA" | grep -o '"datetime":"[^"]*' | cut -d'"' -f4)
+        ;;
+      *timeapi.io*)
+        TIME_DATA=$(curl -s --connect-timeout 15 --socks5-hostname 127.0.0.1:9050 "$api" 2>/dev/null)
+        DATETIME=$(echo "$TIME_DATA" | grep -o '"dateTime":"[^"]*' | cut -d'"' -f4)
+        UNIX_TIME=$(date -d "$DATETIME" +%s 2>/dev/null)
+        ;;
+      *worldclockapi.com*)
+        TIME_DATA=$(curl -s --connect-timeout 15 --socks5-hostname 127.0.0.1:9050 "$api" 2>/dev/null)
+        DATETIME=$(echo "$TIME_DATA" | grep -o '"currentDateTime":"[^"]*' | cut -d'"' -f4)
+        UNIX_TIME=$(date -d "$DATETIME" +%s 2>/dev/null)
+        ;;
+    esac
+    
+    if [ -n "$UNIX_TIME" ] && [ -n "$DATETIME" ]; then
+      echo "✓ Got time from: $api"
+      echo "  Remote time: $DATETIME"
+      return 0
+    fi
+  done
+  
+  echo "✗ Failed to get time from any API"
+  return 1
+}
+
+# Check current drift
+LOCAL_TIME=$(date +%s)
+echo "Local time: $(date)"
+
+if get_tor_time; then
+  DRIFT=$(( UNIX_TIME - LOCAL_TIME ))
+  ABS_DRIFT=${DRIFT#-}
+  
+  echo "Time drift: ${DRIFT} seconds"
+  
+  if [ $ABS_DRIFT -gt 300 ]; then
+    echo "🚨 CRITICAL: Clock drift >5 minutes - Tor will fail!"
+    SYNC_NEEDED=1
+  elif [ $ABS_DRIFT -gt 60 ]; then
+    echo "⚠️  WARNING: Clock drift >1 minute - sync recommended"
+    SYNC_NEEDED=1
+  else
+    echo "✅ Clock drift acceptable ($DRIFT seconds)"
+    SYNC_NEEDED=0
+  fi
+  
+  if [ $SYNC_NEEDED -eq 1 ] || [ "${1:-}" = "--force" ]; then
+    echo "Syncing system time..."
+    if date -s "$DATETIME" >/dev/null 2>&1; then
+      echo "✅ System time synced: $(date)"
+      
+      # Sync hardware clock
+      if command -v hwclock >/dev/null 2>&1; then
+        hwclock -w 2>/dev/null && echo "✅ Hardware clock synced"
+      fi
+      
+      # Restart Tor to refresh with new time
+      echo "Restarting Tor with correct time..."
+      systemctl restart tor
+      sleep 3
+      
+      if systemctl is-active tor >/dev/null; then
+        echo "✅ Tor restarted successfully"
+      else
+        echo "⚠️  Tor restart failed - check systemctl status tor"
+      fi
+    else
+      echo "✗ Failed to set system time"
+      exit 1
+    fi
+  fi
+else
+  echo "✗ Cannot sync time - no network connectivity via Tor"
+  exit 1
+fi
+EOF
+  
+  chmod +x /usr/local/bin/tor-time-sync.sh
+  
+  # Add daily cron job for time synchronization
+  echo "# Daily time synchronization via Tor (critical for Tor operation)" >> /etc/crontab
+  echo "0 3 * * * root /usr/local/bin/tor-time-sync.sh >/var/log/tor-time-sync.log 2>&1" >> /etc/crontab
+  
+  # Also add weekly forced sync (in case daily check skips minor drift)
+  echo "0 4 * * 0 root /usr/local/bin/tor-time-sync.sh --force >/var/log/tor-time-sync.log 2>&1" >> /etc/crontab
+  
+  log "Time synchronization configured: daily checks + weekly forced sync"
   
   # Create systemd service for monitoring
   cat >/etc/systemd/system/tor-monitor.service <<'EOF'
