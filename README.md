@@ -38,9 +38,11 @@ The script creates three isolated hidden services:
 
 ### Prerequisites
 
-- Fresh Ubuntu 24.04.3 LTS server (minimal install)
+- Fresh Ubuntu 24.04.3 LTS server (minimal install) **with full disk encryption**
 - Root access
-- GitHub account with SSH public keys
+- SSH client on your local machine (Linux/macOS/Windows)
+
+**⚠️ CRITICAL: Install Ubuntu with full disk encryption (LUKS) during setup. The script will warn if disk encryption is missing.**
 
 ### Installation
 
@@ -64,7 +66,9 @@ sudo bash setup.sh
 
 **Follow the prompts:**
 - Enter your non-root username for SSH access
-- Provide your GitHub username for SSH key retrieval
+- Select your operating system (Linux/macOS/Windows) for SSH key generation instructions
+- Generate SSH key pair on your local machine and paste the public key
+- Choose enhanced anonymity options (Tor bridges)
 - Choose whether to continue via SSH after initial setup
 
 ## 📋 Setup Process
@@ -72,15 +76,91 @@ sudo bash setup.sh
 The script performs these steps automatically:
 
 1. **System Updates** - Updates packages and installs dependencies
-2. **SSH Configuration** - Hardens SSH and sets up key-based authentication
-3. **Tor Setup** - Configures hidden services for all components
-4. **Nginx Setup** - Deploys dark web landing page
-5. **Prosody Installation** - Installs and configures XMPP server
-6. **OMEMO Configuration** - Enables end-to-end encryption
-7. **SSL Certificates** - Generates certificates for .onion domains
-8. **Admin User Creation** - Creates admin account with random password
-9. **Zero Logging** - Disables all system and service logging
-10. **Firewall Setup** - Configures UFW for Tor-only access
+2. **SSH Setup** - Configures SSH and guides you through secure key generation
+3. **SSH Key Upload** - Interactive setup to add your public SSH key securely
+4. **Tor Setup** - Configures hidden services for all components
+5. **Nginx Setup** - Deploys dark web landing page
+6. **Prosody Installation** - Installs and configures XMPP server
+7. **OMEMO Configuration** - Enables end-to-end encryption
+8. **SSL Certificates** - Generates certificates for .onion domains
+9. **Admin User Creation** - Creates admin account with random password
+10. **System Hardening** - Tor-only networking, APT proxy, service isolation
+11. **Zero Logging** - Disables all system and service logging
+12. **Firewall Setup** - Configures UFW for Tor-only access
+
+## 🔐 SSH Key Setup
+
+The script now includes an interactive SSH key setup that eliminates the need for GitHub accounts:
+
+### Supported Platforms
+- **Linux** - Uses standard `ssh-keygen` command
+- **macOS** - Uses standard `ssh-keygen` command  
+- **Windows** - Supports both built-in SSH client and PuTTY
+
+### Process
+1. Select your operating system
+2. Follow platform-specific instructions to generate an Ed25519 key pair
+3. Copy your public key and paste it into the script
+4. Script validates and installs the key securely
+
+### Privacy Benefits
+- **No GitHub dependency** - Your identity isn't linked to public repositories
+- **Local key generation** - Keys never leave your machine until you explicitly provide them
+- **Validation** - Script ensures key format is correct before proceeding
+
+## 💾 Disk Encryption Requirements
+
+### **Why Full Disk Encryption is Critical**
+
+Without full disk encryption, your Tor server provides **zero privacy protection**:
+
+- 🔓 **SSH private keys** can be recovered from disk
+- 🔓 **.onion private keys** are exposed to anyone with disk access  
+- 🔓 **XMPP conversations** may be recoverable from swap/temp files
+- 🔓 **Server compromise** exposes all historical data
+
+### **Ubuntu Installation with Encryption**
+
+**During Ubuntu 24.04.3 installation:**
+
+1. **Choose "Advanced installation"** 
+2. **Enable "Encrypt the new Ubuntu installation"**
+3. **Choose a strong passphrase** (20+ characters recommended)
+4. **Complete normal installation**
+
+**Alternative: Manual LUKS setup:**
+```bash
+# Example for advanced users (DESTRUCTIVE - backup first!)
+cryptsetup luksFormat /dev/sda2
+cryptsetup luksOpen /dev/sda2 ubuntu-encrypted
+mkfs.ext4 /dev/mapper/ubuntu-encrypted
+# Install Ubuntu to /dev/mapper/ubuntu-encrypted
+```
+
+### **Post-Installation Verification**
+
+The script automatically checks disk encryption and will show:
+
+```
+[9] Disk Encryption Status:
+  Root filesystem: ✓ LUKS encrypted  
+  Swap: ✓ Encrypted
+```
+
+**If you see encryption warnings:**
+- 🚨 **Stop immediately** - Your privacy is compromised
+- 💾 **Back up .onion keys**: `sudo cp -r /var/lib/tor /backup/location`
+- 🔄 **Reinstall with encryption** following the guide above
+- 📥 **Restore .onion keys** using backup/restore feature
+
+### **What the Script Does for Disk Security**
+
+1. **Detects** LUKS/dm-crypt on root filesystem
+2. **Encrypts swap** with random keys (if unencrypted)
+3. **Removes** unencrypted swap files
+4. **Creates encrypted tmpfs** for /tmp, /var/tmp, /dev/shm
+5. **Secures** temporary file handling
+6. **Warns** about any unencrypted storage
 
 ## 🔧 Configuration
 
@@ -94,11 +174,26 @@ The script performs these steps automatically:
 
 ### Security Features
 
-- **No LAN Binding** - All services listen only on 127.0.0.1
+- **Complete Network Isolation** - All services bind only to localhost (127.0.0.1)
+- **Tor-Only Networking** - APT configured to use Tor SOCKS proxy for updates
+- **Enhanced Anonymity** - Optional Tor bridge support for restrictive networks
+- **Outbound Connection Blocking** - UFW blocks all outbound except Tor network
+- **IPv6 Disabled** - Complete IPv6 stack disabled for reduced attack surface
+- **Kernel Hardening** - KASLR, ASLR, syscall restrictions, memory protections
+- **MAC Randomization** - Network interface MAC addresses randomized
+- **Automatic Monitoring** - 5-minute health checks with alerting
+- **Configuration Validation** - Built-in validation for all services
+- **Disk Security** - Full encryption detection, encrypted swap, secure tmpfs
+- **Secure Backups** - AES-256-GCM encrypted backups with integrity verification
+- **Emergency Wipe** - Secure data destruction for compromised systems
 - **Automatic Log Purging** - Hourly cleanup of any log files
-- **SSH Hardening** - Key-only authentication, root login disabled
-- **Firewall Protection** - UFW configured for localhost-only access
+- **SSH Hardening** - Key-only authentication, localhost binding, root disabled
 - **Service Isolation** - Each service uses separate .onion address
+- **DNS Hardening** - systemd-resolved configured for localhost only
+- **Endpoint Detection & Response** - OSSEC HIDS with custom Tor server rules
+- **Malicious Activity Alerts** - Real-time security notifications via XMPP
+- **File Integrity Monitoring** - Real-time monitoring of critical Tor files
+- **Rootkit Detection** - Advanced malware detection and system compromise alerts
 
 ## 📊 After Installation
 
@@ -133,7 +228,7 @@ Admin Interface:
 ### Retrieving All Information
 ```bash
 # Quick access to everything (installed by setup script)
-help
+info
 
 # Shows all onion addresses, admin credentials, and XMPP management commands
 ```
@@ -185,7 +280,8 @@ sudo bash setup.sh --redo prosody
 - `prosody` - XMPP server installation
 - `prosody_config` - Basic XMPP configuration
 - `prosody_onion` - .onion domain and SSL setup
-- `help_script` - Install help script with credentials and admin commands
+- `help_script` - Install info script with credentials and admin commands
+- `system_hardening` - Complete Tor-only system isolation and hardening
 - `ufw` - Firewall configuration
 - `nologs` - Zero logging setup
 - `unattended` - Automatic updates
@@ -194,10 +290,10 @@ sudo bash setup.sh --redo prosody
 ### Quick Access
 ```bash
 # Show all credentials and XMPP admin commands
-help
+info
 
 # Or use full path
-/usr/local/bin/help.sh
+/usr/local/bin/info.sh
 ```
 
 ### Server Administration
@@ -266,11 +362,168 @@ Contributions are welcome! Please:
 
 This project is licensed under the MIT License - see the LICENSE file for details.
 
+## 🔧 Management & Monitoring
+
+### **Built-in Tools**
+```bash
+# Test all connectivity (includes XMPP port testing)
+sudo bash setup.sh --test-connectivity
+
+# Validate all configuration files
+sudo bash setup.sh --verify-config
+
+# Emergency secure data wipe (DESTRUCTIVE)
+sudo bash setup.sh --wipe-data
+
+# View system information and credentials
+info
+
+# Check system health manually
+tor-monitor.sh
+
+# View system alerts
+cat /var/lib/torstack-setup/alerts.txt
+
+# Check monitoring status
+systemctl status tor-monitor.timer
+```
+
+### **Backup & Recovery**
+The script automatically creates encrypted backups of your .onion private keys:
+
+```bash
+# Backup location
+/var/lib/torstack-setup/onion-keys-backup.tar.gz.enc
+
+# View backup password
+sudo cat /var/lib/torstack-setup/backup-password.txt
+
+# Restore from backup (if system is rebuilt)
+sudo bash setup.sh --restore-backup <password>
+```
+
+**⚠️ CRITICAL:** Save the backup password in a secure location. Without it, you cannot restore your .onion addresses.
+
+### **Troubleshooting**
+
+**SSH Access Issues:**
+```bash
+# Re-setup SSH keys
+sudo bash setup.sh --redo early_ssh
+
+# Check SSH status
+systemctl status ssh
+```
+
+**Tor Connectivity Problems:**
+```bash
+# Restart Tor service
+systemctl restart tor
+
+# Check Tor status
+systemctl status tor
+
+# Test connectivity
+curl --socks5-hostname 127.0.0.1:9050 http://check.torproject.org
+```
+
+**Service Failures:**
+```bash
+# Check all services
+sudo bash setup.sh --test-connectivity
+
+# Restart specific service
+systemctl restart [tor|ssh|nginx|prosody]
+
+# Re-run specific setup step
+sudo bash setup.sh --redo <step_name>
+```
+
+**Nginx Custom Page Issues:**
+```bash
+# Diagnose why default nginx page is showing
+sudo bash setup.sh --diagnose-nginx
+
+# Fix nginx configuration
+sudo bash setup.sh --redo nginx
+
+# Manual fixes if needed
+sudo rm -f /etc/nginx/sites-enabled/default*
+sudo systemctl restart nginx
+```
+
+## 🛡️ Endpoint Detection & Response (EDR)
+
+The script automatically installs and configures OSSEC HIDS for advanced threat detection:
+
+### **Automatic Detection**
+- **File Integrity Monitoring** - Real-time monitoring of Tor keys, configuration files, and system directories
+- **Rootkit Detection** - Scans for malware, trojans, and system compromises  
+- **Process Monitoring** - Detects suspicious processes and unauthorized access attempts
+- **Custom Rules** - Tor server-specific detection rules for privacy threats
+
+### **XMPP Security Alerts**
+Get real-time security notifications via XMPP for critical events:
+
+```bash
+# Configure XMPP alerts
+sudo nano /var/lib/torstack-setup/xmpp-alerts.conf
+
+# Example configuration:
+enabled=true
+server=your-xmpp-onion.onion
+username=alerts@your-xmpp-onion.onion  
+password=your-alert-bot-password
+recipient=admin@your-xmpp-onion.onion
+use_tor=true
+```
+
+**Enable alerts after configuration:**
+```bash
+# Restart alert service
+sudo systemctl restart ossec-xmpp-alerts.timer
+
+# Test alert system
+sudo /usr/local/bin/ossec-xmpp-alert.py
+
+# Check alert status
+systemctl status ossec-xmpp-alerts.timer
+```
+
+### **Threat Detection Rules**
+The EDR system includes custom rules for:
+- 🚨 **Critical**: Tor private key access attempts
+- 🚨 **Critical**: Tor daemon termination  
+- 🚨 **Critical**: SSH brute force attacks
+- ⚠️ **Warning**: Configuration file modifications
+- ⚠️ **Warning**: New user account creation
+- 🚨 **Critical**: Services listening on external interfaces
+- 🚨 **Critical**: Suspicious process execution
+
+### **EDR Management**
+```bash
+# Check EDR status
+sudo /var/ossec/bin/ossec-control status
+
+# View security alerts
+cat /var/lib/torstack-setup/alerts.txt
+
+# Manual alert processing
+sudo /usr/local/bin/ossec-xmpp-alert.py
+
+# View OSSEC logs
+sudo tail -f /var/ossec/logs/alerts/alerts.log
+
+# Restart EDR services
+sudo systemctl restart ossec ossec-xmpp-alerts.timer
+```
+
 ## 🆘 Support
 
 - **Issues:** Use GitHub Issues for bug reports
 - **Security:** Report security issues privately via email
 - **Documentation:** Check the wiki for additional guides
+- **Recovery:** Use built-in backup/restore system for .onion keys
 
 ---
 
