@@ -14,6 +14,7 @@ BACKUP_RESTORE=""
 VERIFY_CONFIG=0
 WIPE_DATA=0
 DIAGNOSE_NGINX=0
+TEST_LEAKS=0
 while [ $# -gt 0 ]; do
   case "${1:-}" in
     --force) FORCE_ALL=1 ;;
@@ -23,6 +24,7 @@ while [ $# -gt 0 ]; do
     --verify-config) VERIFY_CONFIG=1 ;;
     --wipe-data) WIPE_DATA=1 ;;
     --diagnose-nginx) DIAGNOSE_NGINX=1 ;;
+    --test-leaks) TEST_LEAKS=1 ;;
     --help) 
       echo "Usage: $0 [options]"
       echo "  --force              Force reinstall all steps"
@@ -32,6 +34,7 @@ while [ $# -gt 0 ]; do
       echo "  --verify-config      Validate all configuration files"
       echo "  --wipe-data          Emergency secure data wipe (DESTRUCTIVE)"
       echo "  --diagnose-nginx     Diagnose nginx custom page issues"
+      echo "  --test-leaks         Test for services bypassing Tor"
       echo "  --help               Show this help"
       exit 0 ;;
     *) echo "Unknown arg: $1. Use --help for usage."; exit 2 ;;
@@ -415,6 +418,142 @@ if [ $DIAGNOSE_NGINX -eq 1 ]; then
   echo
   echo "=== DIAGNOSIS COMPLETE ==="
   exit 0
+fi
+
+if [ $TEST_LEAKS -eq 1 ]; then
+  echo "=== NETWORK LEAK DETECTION ==="
+  LEAKS_FOUND=0
+  
+  echo "1. Testing for active non-Tor connections..."
+  ACTIVE_CONNECTIONS=$(netstat -tupln 2>/dev/null | grep "ESTABLISHED" | grep -v "127.0.0.1:905[0-1]" | grep -v "127.0.0.1" | grep -v "::1")
+  if [ -n "$ACTIVE_CONNECTIONS" ]; then
+    echo "⚠️  Active external connections found:"
+    echo "$ACTIVE_CONNECTIONS"
+    LEAKS_FOUND=$((LEAKS_FOUND + 1))
+  else
+    echo "✓ No active external connections"
+  fi
+  
+  echo
+  echo "2. Testing for services listening on external interfaces..."
+  EXTERNAL_LISTENERS=$(ss -lntp | awk '/^LISTEN/ && !/127\.0\.0\.1/ && !/::1/ {print}' 2>/dev/null)
+  if [ -n "$EXTERNAL_LISTENERS" ]; then
+    echo "⚠️  Services listening on external interfaces:"
+    echo "$EXTERNAL_LISTENERS"
+    LEAKS_FOUND=$((LEAKS_FOUND + 1))
+  else
+    echo "✓ All services bound to localhost only"
+  fi
+  
+  echo
+  echo "3. Testing for problematic systemd services..."
+  PROBLEM_SERVICES=""
+  for service in snapd ubuntu-advantage apport whoopsie motd-news systemd-timesyncd chrony ntp networkd-dispatcher canonical-livepatch; do
+    if systemctl is-active "$service" >/dev/null 2>&1; then
+      PROBLEM_SERVICES="$PROBLEM_SERVICES $service"
+      LEAKS_FOUND=$((LEAKS_FOUND + 1))
+    fi
+  done
+  
+  if [ -n "$PROBLEM_SERVICES" ]; then
+    echo "⚠️  Services that could leak traffic are running:"
+    for service in $PROBLEM_SERVICES; do
+      echo "    - $service ($(systemctl is-active "$service" 2>/dev/null))"
+    done
+  else
+    echo "✓ All problematic services are disabled"
+  fi
+  
+  echo
+  echo "4. Testing DNS resolution path..."
+  if [ -f /etc/resolv.conf ]; then
+    NON_LOCAL_DNS=$(grep "nameserver" /etc/resolv.conf | grep -v "127.0.0.1" | wc -l)
+    if [ "$NON_LOCAL_DNS" -gt 0 ]; then
+      echo "⚠️  Non-localhost DNS servers in /etc/resolv.conf:"
+      grep "nameserver" /etc/resolv.conf | grep -v "127.0.0.1"
+      LEAKS_FOUND=$((LEAKS_FOUND + 1))
+    else
+      echo "✓ DNS configured for localhost only"
+    fi
+  fi
+  
+  echo
+  echo "5. Testing APT proxy configuration..."
+  if [ -f /etc/apt/apt.conf.d/95tor ]; then
+    if grep -q "socks5h://127.0.0.1:9050" /etc/apt/apt.conf.d/95tor; then
+      echo "✓ APT configured to use Tor proxy"
+    else
+      echo "⚠️  APT proxy configuration may be incorrect"
+      LEAKS_FOUND=$((LEAKS_FOUND + 1))
+    fi
+  else
+    echo "⚠️  APT not configured to use Tor proxy"
+    LEAKS_FOUND=$((LEAKS_FOUND + 1))
+  fi
+  
+  echo
+  echo "6. Testing for snap packages (bypass proxy)..."
+  if command -v snap >/dev/null 2>&1; then
+    SNAP_COUNT=$(snap list 2>/dev/null | wc -l)
+    if [ "$SNAP_COUNT" -gt 1 ]; then  # snap list always shows header
+      echo "⚠️  Snap packages installed (can bypass proxy):"
+      snap list 2>/dev/null | tail -n +2
+      LEAKS_FOUND=$((LEAKS_FOUND + 1))
+    else
+      echo "✓ No snap packages installed"
+    fi
+  else
+    echo "✓ Snapd not available"
+  fi
+  
+  echo
+  echo "7. Testing time synchronization..."
+  if systemctl is-active systemd-timesyncd >/dev/null 2>&1; then
+    echo "⚠️  systemd-timesyncd is active (can leak NTP queries)"
+    LEAKS_FOUND=$((LEAKS_FOUND + 1))
+  elif systemctl is-active chrony >/dev/null 2>&1; then
+    echo "⚠️  chrony is active (can leak NTP queries)"
+    LEAKS_FOUND=$((LEAKS_FOUND + 1))
+  elif systemctl is-active ntp >/dev/null 2>&1; then
+    echo "⚠️  ntp is active (can leak NTP queries)"
+    LEAKS_FOUND=$((LEAKS_FOUND + 1))
+  else
+    echo "✓ No time sync services active (manual time sync required)"
+  fi
+  
+  echo
+  echo "8. Testing for Ubuntu telemetry..."
+  if [ -f /etc/ubuntu-advantage/uaclient.conf ]; then
+    echo "⚠️  Ubuntu Advantage client configuration exists"
+    LEAKS_FOUND=$((LEAKS_FOUND + 1))
+  else
+    echo "✓ No Ubuntu Advantage configuration"
+  fi
+  
+  if [ -f /etc/default/motd-news ] && grep -q "ENABLED=1" /etc/default/motd-news; then
+    echo "⚠️  MOTD news is enabled (fetches Ubuntu ads)"
+    LEAKS_FOUND=$((LEAKS_FOUND + 1))
+  else
+    echo "✓ MOTD news disabled"
+  fi
+  
+  echo
+  echo "========================================="
+  if [ $LEAKS_FOUND -eq 0 ]; then
+    echo "✅ LEAK TEST PASSED - No network leaks detected"
+    echo "✅ System appears to be properly configured for Tor-only operation"
+  else
+    echo "⚠️  LEAK TEST FAILED - $LEAKS_FOUND potential issues found"
+    echo
+    echo "RECOMMENDED FIXES:"
+    echo "  1. Run: sudo bash setup.sh --redo system_hardening"
+    echo "  2. Disable problematic services: sudo systemctl mask <service>"
+    echo "  3. Check firewall rules: sudo ufw status verbose"
+    echo "  4. Monitor connections: netstat -tupln | grep ESTABLISHED"
+  fi
+  echo "========================================="
+  
+  exit $LEAKS_FOUND
 fi
 
 if [ "$(id -u)" -ne 0 ]; then
@@ -1482,6 +1621,25 @@ check_external_listeners || FAILED=$((FAILED + 1))
 # Check EDR system
 check_edr_system || FAILED=$((FAILED + 1))
 
+# Check for unauthorized network connections
+check_tor_only_connections() {
+  # Check for any non-Tor outbound connections
+  EXTERNAL_CONNECTIONS=$(netstat -tupln 2>/dev/null | awk '/^tcp.*ESTABLISHED/ && !/127\.0\.0\.1/ && !/::1/ {print $5}' | grep -v "127.0.0.1:905[0-1]" | grep -v ":53" | wc -l)
+  
+  if [ "$EXTERNAL_CONNECTIONS" -gt 0 ]; then
+    log_alert "Found $EXTERNAL_CONNECTIONS unauthorized external connections"
+    netstat -tupln | awk '/^tcp.*ESTABLISHED/ && !/127\.0\.0\.1/ && !/::1/ {print $5}' | grep -v "127.0.0.1:905[0-1]" | grep -v ":53" | head -5 | while read -r conn; do
+      log_alert "  Unauthorized connection to: $conn"
+    done
+    return 1
+  else
+    log_ok "No unauthorized external connections found"
+    return 0
+  fi
+}
+
+check_tor_only_connections || FAILED=$((FAILED + 1))
+
 # Summary
 if [ $FAILED -eq 0 ]; then
   log_ok "All systems operational"
@@ -2354,10 +2512,112 @@ EOF
     systemctl daemon-reload
   fi
   
+  # Disable and mask services that may bypass Tor proxy
+  echo "  Blocking services that could leak internet traffic..."
+  
+  # Ubuntu telemetry and update services
+  systemctl disable --now ubuntu-advantage.service 2>/dev/null || true
+  systemctl mask ubuntu-advantage.service 2>/dev/null || true
+  systemctl disable --now esm-cache.service 2>/dev/null || true  
+  systemctl mask esm-cache.service 2>/dev/null || true
+  
+  # Snap store updates (bypasses proxy)
+  systemctl disable --now snapd.service 2>/dev/null || true
+  systemctl disable --now snapd.socket 2>/dev/null || true
+  systemctl mask snapd.service 2>/dev/null || true
+  systemctl mask snapd.socket 2>/dev/null || true
+  
+  # Error and crash reporting
+  systemctl disable --now apport.service 2>/dev/null || true
+  systemctl mask apport.service 2>/dev/null || true
+  systemctl disable --now whoopsie.service 2>/dev/null || true  
+  systemctl mask whoopsie.service 2>/dev/null || true
+  
+  # Ubuntu message of the day updates
+  systemctl disable --now motd-news.service 2>/dev/null || true
+  systemctl mask motd-news.service 2>/dev/null || true
+  systemctl disable --now motd-news.timer 2>/dev/null || true
+  systemctl mask motd-news.timer 2>/dev/null || true
+  
+  # Time sync services (can leak DNS/NTP queries)
+  systemctl disable --now systemd-timesyncd.service 2>/dev/null || true
+  systemctl mask systemd-timesyncd.service 2>/dev/null || true
+  systemctl disable --now chrony.service 2>/dev/null || true
+  systemctl mask chrony.service 2>/dev/null || true
+  systemctl disable --now ntp.service 2>/dev/null || true
+  systemctl mask ntp.service 2>/dev/null || true
+  
+  # Network dispatcher (can make arbitrary connections)
+  systemctl disable --now networkd-dispatcher.service 2>/dev/null || true
+  systemctl mask networkd-dispatcher.service 2>/dev/null || true
+  
+  # Ubuntu Pro and Livepatch services
+  systemctl disable --now canonical-livepatch.service 2>/dev/null || true
+  systemctl mask canonical-livepatch.service 2>/dev/null || true
+  systemctl disable --now ua-messaging.service 2>/dev/null || true
+  systemctl mask ua-messaging.service 2>/dev/null || true
+  systemctl disable --now ua-timer.service 2>/dev/null || true
+  systemctl mask ua-timer.service 2>/dev/null || true
+  
+  # Package update notifications
+  systemctl disable --now update-notifier-download.timer 2>/dev/null || true
+  systemctl mask update-notifier-download.timer 2>/dev/null || true
+  systemctl disable --now update-notifier-motd.timer 2>/dev/null || true  
+  systemctl mask update-notifier-motd.timer 2>/dev/null || true
+  
+  # Cloud services (if present on cloud instances)
+  systemctl disable --now cloud-init.service 2>/dev/null || true
+  systemctl mask cloud-init.service 2>/dev/null || true
+  systemctl disable --now cloud-config.service 2>/dev/null || true
+  systemctl mask cloud-config.service 2>/dev/null || true
+  systemctl disable --now cloud-final.service 2>/dev/null || true
+  systemctl mask cloud-final.service 2>/dev/null || true
+  
+  # Disable automatic package installs that could leak
+  echo 'APT::Periodic::Update-Package-Lists "0";' > /etc/apt/apt.conf.d/10no-updates
+  echo 'APT::Periodic::Download-Upgradeable-Packages "0";' >> /etc/apt/apt.conf.d/10no-updates
+  echo 'APT::Periodic::AutocleanInterval "0";' >> /etc/apt/apt.conf.d/10no-updates
+  echo 'APT::Periodic::Unattended-Upgrade "0";' >> /etc/apt/apt.conf.d/10no-updates
+  
+  # Disable Ubuntu Pro ads and motd-news
+  if [ -f /etc/default/motd-news ]; then
+    sed -i 's/ENABLED=1/ENABLED=0/' /etc/default/motd-news
+  fi
+  
+  # Remove Ubuntu Pro token to prevent connections
+  rm -f /etc/ubuntu-advantage/uaclient.conf 2>/dev/null || true
+  
+  # Configure systemd to prevent automatic service starts
+  mkdir -p /etc/systemd/system-preset
+  cat >/etc/systemd/system-preset/99-tor-only.preset <<'EOF'
+# Tor-only system preset - disable services that might leak traffic
+disable snapd.service
+disable snapd.socket
+disable ubuntu-advantage.service
+disable esm-cache.service
+disable apport.service
+disable whoopsie.service
+disable motd-news.service
+disable motd-news.timer
+disable systemd-timesyncd.service
+disable chrony.service
+disable ntp.service
+disable networkd-dispatcher.service
+disable canonical-livepatch.service
+disable ua-messaging.service
+disable ua-timer.service
+disable update-notifier-download.timer
+disable update-notifier-motd.timer
+disable cloud-init.service
+disable cloud-config.service
+disable cloud-final.service
+EOF
+  
   # Restart services with new configurations
   systemctl restart systemd-resolved || true
   
-  log "System hardened for Tor-only operation"
+  log "✓ All network services configured for Tor-only operation"
+  log "✓ Disabled services that could bypass Tor proxy"
   mark "system_hardening"
 else echo "[system_hardening] skipped"; fi
 

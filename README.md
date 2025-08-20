@@ -194,6 +194,9 @@ The script automatically checks disk encryption and will show:
 - **Malicious Activity Alerts** - Real-time security notifications via XMPP
 - **File Integrity Monitoring** - Real-time monitoring of critical Tor files
 - **Rootkit Detection** - Advanced malware detection and system compromise alerts
+- **Service Leak Prevention** - Blocks 15+ Ubuntu services that bypass proxy settings
+- **Network Leak Detection** - Built-in testing for services that might contact internet directly
+- **Ubuntu Telemetry Blocking** - Disables Ubuntu Advantage, snap store, crash reporting, MOTD ads
 
 ## 📊 After Installation
 
@@ -450,6 +453,22 @@ sudo bash setup.sh --redo nginx
 # Manual fixes if needed
 sudo rm -f /etc/nginx/sites-enabled/default*
 sudo systemctl restart nginx
+```
+
+**Network Leak Detection:**
+```bash
+# Test for services bypassing Tor
+sudo bash setup.sh --test-leaks
+
+# Shows comprehensive report of:
+# - Active external connections
+# - Services listening on external interfaces  
+# - Problematic systemd services
+# - DNS configuration issues
+# - APT proxy settings
+# - Snap packages (bypass proxy)
+# - Time sync services
+# - Ubuntu telemetry services
 ```
 
 ## 🛡️ Endpoint Detection & Response (EDR)
