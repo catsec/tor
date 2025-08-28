@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(bash:*)",
+      "Bash(shellcheck:*)",
+      "Bash(mkdir:*)",
+      "Bash(chmod:*)",
+      "Bash(find:*)",
+      "Bash(tree:*)",
+      "Bash(./setup.sh:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
