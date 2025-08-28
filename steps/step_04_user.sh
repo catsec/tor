@@ -31,7 +31,6 @@ user() {
     local USER_LOG="/tmp/user_step4_$$.log"
     local CREATED_USER=""
     local PASSWORD_ATTEMPTS=0
-    local MAX_PASSWORD_ATTEMPTS=5
     
     # Cleanup function for errors and rollback
     cleanup_user() {
@@ -139,9 +138,8 @@ user() {
     
     local username=""
     local USERNAME_ATTEMPTS=0
-    local MAX_USERNAME_ATTEMPTS=5
     
-    while [[ $USERNAME_ATTEMPTS -lt $MAX_USERNAME_ATTEMPTS ]]; do
+    while true; do
         read -p "Enter username: " username
         USERNAME_ATTEMPTS=$((USERNAME_ATTEMPTS + 1))
         
@@ -200,10 +198,6 @@ user() {
         break
     done
     
-    if [[ $USERNAME_ATTEMPTS -ge $MAX_USERNAME_ATTEMPTS ]]; then
-        echo "ERROR: Maximum username attempts exceeded ($MAX_USERNAME_ATTEMPTS)" >&2
-        exit 1
-    fi
     
     CREATED_USER="$username"  # Set for cleanup function
     
@@ -215,7 +209,7 @@ user() {
     local password=""
     local password_confirm=""
     
-    while [[ $PASSWORD_ATTEMPTS -lt $MAX_PASSWORD_ATTEMPTS ]]; do
+    while true; do
         PASSWORD_ATTEMPTS=$((PASSWORD_ATTEMPTS + 1))
         
         echo "Password requirements:"
@@ -318,10 +312,6 @@ user() {
         break
     done
     
-    if [[ $PASSWORD_ATTEMPTS -ge $MAX_PASSWORD_ATTEMPTS ]]; then
-        echo "ERROR: Maximum password attempts exceeded ($MAX_PASSWORD_ATTEMPTS)" >&2
-        exit 1
-    fi
     
     # ---------------------------------------------------------------------
     # 4) User Account Creation with Comprehensive Validation
