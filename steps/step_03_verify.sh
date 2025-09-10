@@ -103,7 +103,6 @@ verify() {
         "iptables:IPv4 packet filter:command:iptables"
         "nftables:Modern packet filtering:command:nft"
         "tor:Anonymity network daemon:command:tor"
-        "nyx:Tor monitoring tool:command:nyx"
         "nginx:Web server:command:nginx"
         "wireguard-tools:WireGuard VPN tools:command:wg"
         "curl:HTTP client:command:curl"

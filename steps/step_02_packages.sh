@@ -48,7 +48,6 @@ packages() {
         "iptables:IPv4 packet filter and NAT"
         "nftables:Modern packet filtering framework"
         "tor:Anonymity network daemon"
-        "nyx:Command-line monitor for tor"
         "nginx:Web server"
         "wireguard-tools:WireGuard VPN tools and utilities"
         "curl:HTTP client for web requests"
