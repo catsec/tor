@@ -42,6 +42,7 @@ packages() {
     # Required packages list with descriptions for validation
     local REQUIRED_PACKAGES=(
         "openssh-server:SSH daemon for secure remote access"
+        "sudo:Run commands as another user"
         "ufw:Uncomplicated Firewall"
         "iptables:IPv4 packet filter and NAT"
         "nftables:Modern packet filtering framework"
