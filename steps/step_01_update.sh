@@ -77,7 +77,7 @@ update() {
     fi
     
     # Check for required commands
-    local REQUIRED_CMDS=("apt-get" "dpkg" "ping" "timeout" "find" "lsof")
+    local REQUIRED_CMDS=("apt-get" "dpkg" "ping" "timeout" "find")
     for cmd in "${REQUIRED_CMDS[@]}"; do
         if ! command -v "$cmd" &>/dev/null; then
             echo -e "\033[31mERROR: Required command '$cmd' not found\033[0m" >&2
@@ -122,23 +122,29 @@ update() {
         "/var/cache/apt/archives/lock"
     )
     
-    for lock_file in "${APT_LOCKS[@]}"; do
-        if lsof "$lock_file" &>/dev/null; then
-            echo "WARNING: APT lock file $lock_file is in use by another process"
-            echo "Waiting up to 60 seconds for process to complete..."
-            local wait_count=0
-            while lsof "$lock_file" &>/dev/null && [[ $wait_count -lt 12 ]]; do
-                sleep 5
-                wait_count=$((wait_count + 1))
-            done
-            
+    # Check for APT locks (if lsof is available)
+    if command -v lsof &>/dev/null; then
+        for lock_file in "${APT_LOCKS[@]}"; do
             if lsof "$lock_file" &>/dev/null; then
-                echo -e "\033[31mERROR: APT is still locked after waiting. Another package manager may be running.\033[0m" >&2
-                echo "Please wait for other package operations to complete or kill blocking processes." >&2
-                exit 1
+                echo "WARNING: APT lock file $lock_file is in use by another process"
+                echo "Waiting up to 60 seconds for process to complete..."
+                local wait_count=0
+                while lsof "$lock_file" &>/dev/null && [[ $wait_count -lt 12 ]]; do
+                    sleep 5
+                    wait_count=$((wait_count + 1))
+                done
+                
+                if lsof "$lock_file" &>/dev/null; then
+                    echo -e "\033[31mERROR: APT is still locked after waiting. Another package manager may be running.\033[0m" >&2
+                    echo "Please wait for other package operations to complete or kill blocking processes." >&2
+                    exit 1
+                fi
             fi
-        fi
-    done
+        done
+    else
+        echo "WARNING: lsof not available - skipping APT lock file checks"
+        echo "If you encounter APT errors, wait for other package operations to complete"
+    fi
     
     # Verify repository configuration isn't corrupted
     if ! apt-get check 2>/dev/null; then

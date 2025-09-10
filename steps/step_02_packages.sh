@@ -43,6 +43,7 @@ packages() {
     local REQUIRED_PACKAGES=(
         "openssh-server:SSH daemon for secure remote access"
         "sudo:Run commands as another user"
+        "lsof:List open files (required for APT lock checking)"
         "ufw:Uncomplicated Firewall"
         "iptables:IPv4 packet filter and NAT"
         "nftables:Modern packet filtering framework"
@@ -150,22 +151,37 @@ packages() {
         "/var/cache/apt/archives/lock"
     )
     
-    for lock_file in "${APT_LOCKS[@]}"; do
-        if lsof "$lock_file" &>/dev/null; then
-            echo "WARNING: APT lock file $lock_file is in use by another process"
-            echo "Waiting up to 60 seconds for process to complete..."
+    # Check for APT locks (if lsof is available, otherwise try basic detection)
+    if command -v lsof &>/dev/null; then
+        for lock_file in "${APT_LOCKS[@]}"; do
+            if lsof "$lock_file" &>/dev/null; then
+                echo "WARNING: APT lock file $lock_file is in use by another process"
+                echo "Waiting up to 60 seconds for process to complete..."
+                local wait_count=0
+                while lsof "$lock_file" &>/dev/null && [[ $wait_count -lt 12 ]]; do
+                    sleep 5
+                    wait_count=$((wait_count + 1))
+                done
+                
+                if lsof "$lock_file" &>/dev/null; then
+                    echo -e "\033[31mERROR: APT is still locked after waiting. Another package manager may be running.\033[0m" >&2
+                    exit 1
+                fi
+            fi
+        done
+    else
+        echo "INFO: lsof not available yet - using basic APT lock detection"
+        # Basic check for common apt processes
+        if pgrep -f "apt-get\|dpkg\|unattended-upgrade" &>/dev/null; then
+            echo "WARNING: APT/package management processes detected"
+            echo "Waiting up to 60 seconds for processes to complete..."
             local wait_count=0
-            while lsof "$lock_file" &>/dev/null && [[ $wait_count -lt 12 ]]; do
+            while pgrep -f "apt-get\|dpkg\|unattended-upgrade" &>/dev/null && [[ $wait_count -lt 12 ]]; do
                 sleep 5
                 wait_count=$((wait_count + 1))
             done
-            
-            if lsof "$lock_file" &>/dev/null; then
-                echo -e "\033[31mERROR: APT is still locked after waiting. Another package manager may be running.\033[0m" >&2
-                exit 1
-            fi
         fi
-    done
+    fi
     
     # Verify package system integrity
     if ! apt-get check 2>/dev/null; then
