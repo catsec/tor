@@ -323,35 +323,77 @@ Pin-Priority: -1' > /etc/apt/preferences.d/99-no-ipv6
     
     # Handle stuck dpkg triggers (common with libc-bin after nyx installation)
     echo "Checking for stuck dpkg triggers..."
-    if dpkg --audit 2>/dev/null | grep -q "triggers"; then
-        echo "Found stuck triggers, attempting to resolve..."
+    
+    # More aggressive trigger handling for problematic packages like nyx
+    local trigger_attempts=0
+    local max_trigger_attempts=3
+    
+    while [[ $trigger_attempts -lt $max_trigger_attempts ]]; do
+        trigger_attempts=$((trigger_attempts + 1))
+        echo "Trigger resolution attempt $trigger_attempts/$max_trigger_attempts..."
         
-        # Try to configure all pending packages
-        if ! dpkg --configure --pending 2>/dev/null; then
-            echo "Standard trigger resolution failed, trying force methods..."
+        if dpkg --audit 2>/dev/null | grep -q "triggers"; then
+            echo "Found stuck triggers, attempting to resolve..."
             
-            # Force trigger processing
+            # Kill any running dpkg processes that might be interfering
+            pkill -f dpkg 2>/dev/null || true
+            sleep 2
+            
+            # Method 1: Standard trigger processing
+            echo "  Trying standard trigger processing..."
+            dpkg --configure --pending 2>/dev/null || true
+            
+            # Method 2: Force configure all packages
+            echo "  Forcing configuration of all packages..."
             dpkg --configure -a --force-confold --force-confdef 2>/dev/null || true
             
-            # If still stuck, specifically handle libc-bin triggers
+            # Method 3: Specific libc-bin handling (common culprit)
             if dpkg --audit 2>/dev/null | grep -q "libc-bin"; then
-                echo "Forcing libc-bin trigger resolution..."
+                echo "  Forcing libc-bin trigger resolution..."
                 dpkg --triggers-only libc-bin 2>/dev/null || true
-                dpkg --configure libc-bin 2>/dev/null || true
+                dpkg --configure libc-bin --force-confold --force-confdef 2>/dev/null || true
+                ldconfig 2>/dev/null || true  # Manually run ldconfig
             fi
             
-            # Final attempt to configure all
-            dpkg --configure -a 2>/dev/null || true
-        fi
-        
-        # Verify triggers are resolved
-        if dpkg --audit 2>/dev/null | grep -q "triggers"; then
-            echo "WARNING: Some triggers may still be pending, but continuing..."
+            # Method 4: Force all triggers to process
+            echo "  Processing all pending triggers..."
+            dpkg --triggers-only --pending 2>/dev/null || true
+            
+            # Method 5: Nuclear option - force configure with all override flags
+            if dpkg --audit 2>/dev/null | grep -q "triggers"; then
+                echo "  Using nuclear option for trigger resolution..."
+                DEBIAN_FRONTEND=noninteractive dpkg --configure -a \
+                    --force-confold \
+                    --force-confdef \
+                    --force-confmiss \
+                    --force-confnew 2>/dev/null || true
+            fi
+            
+            # Check if resolved
+            if ! dpkg --audit 2>/dev/null | grep -q "triggers"; then
+                echo "  Triggers resolved successfully"
+                break
+            fi
+            
+            if [[ $trigger_attempts -lt $max_trigger_attempts ]]; then
+                echo "  Triggers still pending, waiting 5 seconds before retry..."
+                sleep 5
+            fi
         else
-            echo "All triggers resolved successfully"
+            echo "No stuck triggers detected"
+            break
         fi
+    done
+    
+    # Final status check
+    if dpkg --audit 2>/dev/null | grep -q "triggers"; then
+        echo "WARNING: Some triggers may still be pending after $max_trigger_attempts attempts"
+        echo "This is usually harmless and will be resolved on next package operation"
+        # Show what's still pending
+        echo "Pending triggers:"
+        dpkg --audit 2>/dev/null | grep "triggers" || true
     else
-        echo "No stuck triggers detected"
+        echo "All triggers resolved successfully"
     fi
     
     # Clean up apt configuration
