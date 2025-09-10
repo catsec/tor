@@ -37,9 +37,16 @@ user() {
         local exit_code=$?
         echo "Cleaning up user creation artifacts..."
         
-        # Clean up temporary files
-        rm -rf "$TEMP_DIR" 2>/dev/null || true
-        rm -f "$USER_LOG" 2>/dev/null || true
+        # Clean up temporary files (use hardcoded pattern if variable not available)
+        if [[ -n "${TEMP_DIR:-}" ]]; then
+            rm -rf "$TEMP_DIR" 2>/dev/null || true
+        fi
+        rm -rf "/tmp/user_validation_$$" 2>/dev/null || true
+        
+        if [[ -n "${USER_LOG:-}" ]]; then
+            rm -f "$USER_LOG" 2>/dev/null || true
+        fi
+        rm -f "/tmp/user_step4_$$.log" 2>/dev/null || true
         
         # Remove any temporary scripts and password files
         find /tmp -name "sudo_test_script_$$*" -type f -delete 2>/dev/null || true
