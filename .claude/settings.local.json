@@ -14,7 +14,8 @@
       "WebSearch",
       "Read(//tmp/**)",
       "Bash(git tag:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(gh auth:*)"
     ],
     "deny": [],
     "ask": []
