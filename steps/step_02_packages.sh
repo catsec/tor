@@ -304,6 +304,39 @@ Pin-Priority: -1' > /etc/apt/preferences.d/99-no-ipv6
         fi
     fi
     
+    # Handle stuck dpkg triggers (common with libc-bin after nyx installation)
+    echo "Checking for stuck dpkg triggers..."
+    if dpkg --audit 2>/dev/null | grep -q "triggers"; then
+        echo "Found stuck triggers, attempting to resolve..."
+        
+        # Try to configure all pending packages
+        if ! dpkg --configure --pending 2>/dev/null; then
+            echo "Standard trigger resolution failed, trying force methods..."
+            
+            # Force trigger processing
+            dpkg --configure -a --force-confold --force-confdef 2>/dev/null || true
+            
+            # If still stuck, specifically handle libc-bin triggers
+            if dpkg --audit 2>/dev/null | grep -q "libc-bin"; then
+                echo "Forcing libc-bin trigger resolution..."
+                dpkg --triggers-only libc-bin 2>/dev/null || true
+                dpkg --configure libc-bin 2>/dev/null || true
+            fi
+            
+            # Final attempt to configure all
+            dpkg --configure -a 2>/dev/null || true
+        fi
+        
+        # Verify triggers are resolved
+        if dpkg --audit 2>/dev/null | grep -q "triggers"; then
+            echo "WARNING: Some triggers may still be pending, but continuing..."
+        else
+            echo "All triggers resolved successfully"
+        fi
+    else
+        echo "No stuck triggers detected"
+    fi
+    
     # Clean up apt configuration
     rm -f /etc/apt/apt.conf.d/99-packages-safety
     
