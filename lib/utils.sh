@@ -92,13 +92,34 @@ get_saved_username() {
 
 # Detect SSH service name across different distributions
 detect_ssh_service() {
-    if systemctl list-unit-files | grep -q "^ssh\.service"; then
-        echo "ssh"
-    elif systemctl list-unit-files | grep -q "^sshd\.service"; then
-        echo "sshd"
-    else
-        echo ""
+    # Try common SSH service names in order of preference
+    local ssh_services=("ssh" "sshd" "openssh-server" "openssh")
+    
+    for service in "${ssh_services[@]}"; do
+        if systemctl list-unit-files | grep -q "^${service}\.service"; then
+            echo "$service"
+            return 0
+        fi
+    done
+    
+    # If no exact match, try broader search for SSH-related services
+    local ssh_service=$(systemctl list-unit-files | grep -i ssh | head -1 | awk '{print $1}' | sed 's/\.service$//')
+    if [[ -n "$ssh_service" ]]; then
+        echo "$ssh_service"
+        return 0
     fi
+    
+    # Last resort: check if SSH daemon binary exists and try to find its service
+    if command -v sshd &>/dev/null; then
+        # Check systemd for any service that might be SSH
+        local potential_service=$(systemctl list-units --type=service --all | grep -i ssh | head -1 | awk '{print $1}' | sed 's/\.service$//')
+        if [[ -n "$potential_service" ]]; then
+            echo "$potential_service"
+            return 0
+        fi
+    fi
+    
+    echo ""
 }
 
 # Security check: Verify only expected users exist on the system
