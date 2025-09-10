@@ -173,9 +173,9 @@ update() {
     # ---------------------------------------------------------------------
     echo "Configuring Debian repositories..."
     
-    # Check if sources.list only contains CD-ROM entries
-    if ! grep -q "^deb http" /etc/apt/sources.list 2>/dev/null; then
-        echo "Setting up network repositories (CD-ROM only configuration detected)"
+    # Check if sources.list contains CD-ROM entries or lacks proper network repos
+    if grep -q "^deb cdrom:" /etc/apt/sources.list 2>/dev/null || ! grep -q "^deb http.*main" /etc/apt/sources.list 2>/dev/null; then
+        echo "Setting up network repositories (CD-ROM or incomplete network configuration detected)"
         
         # Backup original sources.list
         cp /etc/apt/sources.list /etc/apt/sources.list.backup 2>/dev/null || true
@@ -193,17 +193,26 @@ update() {
         
         echo "Detected Debian $DEBIAN_VERSION ($DEBIAN_CODENAME)"
         
-        # Create proper sources.list
+        # Create proper sources.list (completely replace to remove CD-ROM entries)
         cat > /etc/apt/sources.list << EOF
-# Debian $DEBIAN_VERSION ($DEBIAN_CODENAME) repositories
+# Debian $DEBIAN_VERSION ($DEBIAN_CODENAME) - Network Repositories Only
+# CD-ROM entries disabled for network-only installation
+
+# Main repository
 deb http://deb.debian.org/debian $DEBIAN_CODENAME main
 deb-src http://deb.debian.org/debian $DEBIAN_CODENAME main
 
+# Security updates
 deb http://security.debian.org/debian-security $DEBIAN_CODENAME-security main
 deb-src http://security.debian.org/debian-security $DEBIAN_CODENAME-security main
 
+# Regular updates
 deb http://deb.debian.org/debian $DEBIAN_CODENAME-updates main
 deb-src http://deb.debian.org/debian $DEBIAN_CODENAME-updates main
+
+# Backports (commented out by default)
+# deb http://deb.debian.org/debian $DEBIAN_CODENAME-backports main
+# deb-src http://deb.debian.org/debian $DEBIAN_CODENAME-backports main
 EOF
         
         echo "Network repositories configured successfully"
