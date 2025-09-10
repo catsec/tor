@@ -228,6 +228,8 @@ done
 if [[ ${#non_root_users[@]} -gt 0 ]]; then
     # Check if the detected users are the ones we created during setup
     saved_username=$(get_saved_username)
+    echo "Debug: Saved username from status file: '${saved_username}'"
+    echo "Debug: Non-root users found: ${non_root_users[*]}"
     unknown_users=()
     
     for user in "${non_root_users[@]}"; do
