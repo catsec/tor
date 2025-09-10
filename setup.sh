@@ -226,46 +226,70 @@ for user in "${login_users[@]}"; do
 done
 
 if [[ ${#non_root_users[@]} -gt 0 ]]; then
-    echo -e "\033[31mSECURITY ERROR: System has existing users other than root!\033[0m"
-    echo ""
-    echo "Found login-capable users: ${login_users[*]}"
-    echo "Non-root users detected: ${non_root_users[*]}"
-    echo ""
-    echo "This script is designed for FRESH Debian 13 installations with only root."
-    echo "Running on a system with existing users poses security risks:"
-    echo "  - Existing users may have weak passwords or SSH keys"
-    echo "  - Unknown user permissions and access levels"
-    echo "  - Potential for privilege escalation attacks"
-    echo "  - Cannot guarantee secure baseline configuration"
-    echo ""
-    read -p "Delete these users and continue? (y/N): " -n 1 -r
-    echo ""
+    # Check if the detected users are the ones we created during setup
+    saved_username=$(get_saved_username)
+    unknown_users=()
     
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
+    for user in "${non_root_users[@]}"; do
+        if [[ "$user" != "$saved_username" ]]; then
+            unknown_users+=("$user")
+        fi
+    done
+    
+    if [[ ${#unknown_users[@]} -gt 0 ]]; then
+        echo -e "\033[31mSECURITY ERROR: System has existing users other than root and our created user!\033[0m"
         echo ""
-        echo "Removing existing non-root users..."
-        for user in "${non_root_users[@]}"; do
-            if id "$user" &>/dev/null; then
-                echo "Removing user: $user"
-                if deluser --remove-home --quiet "$user" 2>/dev/null; then
-                    echo "  Successfully removed user: $user"
-                else
-                    echo -e "\033[31m  ERROR: Failed to remove user: $user\033[0m"
-                    echo "  You may need to manually remove this user before continuing."
-                    exit 1
+        echo "Found login-capable users: ${login_users[*]}"
+        if [[ -n "$saved_username" ]]; then
+            echo "Expected user (created by this script): $saved_username"
+            echo "Unknown users detected: ${unknown_users[*]}"
+        else
+            echo "Non-root users detected: ${non_root_users[*]}"
+        fi
+        echo ""
+        echo "This script is designed for FRESH Debian 13 installations with only root."
+        echo "Running on a system with existing users poses security risks:"
+        echo "  - Existing users may have weak passwords or SSH keys"
+        echo "  - Unknown user permissions and access levels"
+        echo "  - Potential for privilege escalation attacks"
+        echo "  - Cannot guarantee secure baseline configuration"
+        echo ""
+        read -p "Delete these unknown users and continue? (y/N): " -n 1 -r
+        echo ""
+        
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            echo ""
+            echo "Removing unknown non-root users..."
+            for user in "${unknown_users[@]}"; do
+                if id "$user" &>/dev/null; then
+                    echo "Removing user: $user"
+                    if deluser --remove-home --quiet "$user" 2>/dev/null; then
+                        echo "  Successfully removed user: $user"
+                    else
+                        echo -e "\033[31m  ERROR: Failed to remove user: $user\033[0m"
+                        echo "  You may need to manually remove this user before continuing."
+                        exit 1
+                    fi
                 fi
-            fi
-        done
-        echo ""
-        echo -e "\033[92mAll non-root users removed. System is now secure for setup.\033[0m"
+            done
+            echo ""
+            echo -e "\033[92mAll unknown users removed. System is now secure for setup.\033[0m"
+        else
+            echo ""
+            echo "Exiting. Cannot proceed with unknown users present."
+            echo "To manually remove users, run:"
+            for user in "${unknown_users[@]}"; do
+                echo "  deluser --remove-home $user"
+            done
+            exit 1
+        fi
     else
-        echo ""
-        echo "Exiting. Cannot proceed with existing users present."
-        echo "To manually remove users, run:"
-        for user in "${non_root_users[@]}"; do
-            echo "  deluser --remove-home $user"
-        done
-        exit 1
+        if [[ -n "$saved_username" ]]; then
+            echo "Security check passed: Only root and our created user ($saved_username) detected"
+        else
+            echo "Security check passed: Only expected users detected"
+        fi
+        echo "  System is ready for secure configuration"
     fi
 else
     echo "Security check passed: Only root user detected"
