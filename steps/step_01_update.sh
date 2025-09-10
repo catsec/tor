@@ -163,6 +163,50 @@ update() {
     echo "Network and repository validation passed"
     
     # ---------------------------------------------------------------------
+    # 2.5) Repository Configuration Setup
+    # ---------------------------------------------------------------------
+    echo "Configuring Debian repositories..."
+    
+    # Check if sources.list only contains CD-ROM entries
+    if ! grep -q "^deb http" /etc/apt/sources.list 2>/dev/null; then
+        echo "Setting up network repositories (CD-ROM only configuration detected)"
+        
+        # Backup original sources.list
+        cp /etc/apt/sources.list /etc/apt/sources.list.backup 2>/dev/null || true
+        
+        # Detect Debian version
+        DEBIAN_VERSION=$(cat /etc/debian_version | cut -d. -f1 2>/dev/null || echo "13")
+        
+        # Map version numbers to codenames
+        case "$DEBIAN_VERSION" in
+            "13") DEBIAN_CODENAME="trixie" ;;
+            "12") DEBIAN_CODENAME="bookworm" ;;
+            "11") DEBIAN_CODENAME="bullseye" ;;
+            *) DEBIAN_CODENAME="trixie" ;;  # Default to latest stable
+        esac
+        
+        echo "Detected Debian $DEBIAN_VERSION ($DEBIAN_CODENAME)"
+        
+        # Create proper sources.list
+        cat > /etc/apt/sources.list << EOF
+# Debian $DEBIAN_VERSION ($DEBIAN_CODENAME) repositories
+deb http://deb.debian.org/debian $DEBIAN_CODENAME main
+deb-src http://deb.debian.org/debian $DEBIAN_CODENAME main
+
+deb http://security.debian.org/debian-security $DEBIAN_CODENAME-security main
+deb-src http://security.debian.org/debian-security $DEBIAN_CODENAME-security main
+
+deb http://deb.debian.org/debian $DEBIAN_CODENAME-updates main
+deb-src http://deb.debian.org/debian $DEBIAN_CODENAME-updates main
+EOF
+        
+        echo "Network repositories configured successfully"
+        echo "Backup of original sources.list saved as /etc/apt/sources.list.backup"
+    else
+        echo "Network repositories already configured"
+    fi
+    
+    # ---------------------------------------------------------------------
     # 3) Package List Update with Validation
     # ---------------------------------------------------------------------
     echo "Updating package lists with validation..."

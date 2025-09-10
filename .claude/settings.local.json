@@ -15,7 +15,8 @@
       "Read(//tmp/**)",
       "Bash(git tag:*)",
       "Bash(git push:*)",
-      "Bash(gh auth:*)"
+      "Bash(gh auth:*)",
+      "Bash(sudo:*)"
     ],
     "deny": [],
     "ask": []
