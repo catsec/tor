@@ -75,7 +75,7 @@ verify() {
     fi
     
     # Verify basic system tools are available
-    local REQUIRED_SYSTEM_CMDS=("systemctl" "dpkg" "which" "ps" "netstat" "ss")
+    local REQUIRED_SYSTEM_CMDS=("systemctl" "dpkg" "which" "ps" "ss")
     for cmd in "${REQUIRED_SYSTEM_CMDS[@]}"; do
         if ! command -v "$cmd" &>/dev/null; then
             echo -e "\033[31mERROR: Required system command '$cmd' not found\033[0m" >&2
