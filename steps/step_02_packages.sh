@@ -150,16 +150,16 @@ packages() {
     )
     
     for lock_file in "${APT_LOCKS[@]}"; do
-        if fuser "$lock_file" 2>/dev/null; then
+        if lsof "$lock_file" &>/dev/null; then
             echo "WARNING: APT lock file $lock_file is in use by another process"
             echo "Waiting up to 60 seconds for process to complete..."
             local wait_count=0
-            while fuser "$lock_file" 2>/dev/null && [[ $wait_count -lt 12 ]]; do
+            while lsof "$lock_file" &>/dev/null && [[ $wait_count -lt 12 ]]; do
                 sleep 5
                 wait_count=$((wait_count + 1))
             done
             
-            if fuser "$lock_file" 2>/dev/null; then
+            if lsof "$lock_file" &>/dev/null; then
                 echo -e "\033[31mERROR: APT is still locked after waiting. Another package manager may be running.\033[0m" >&2
                 exit 1
             fi

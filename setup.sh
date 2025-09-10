@@ -238,13 +238,35 @@ if [[ ${#non_root_users[@]} -gt 0 ]]; then
     echo "  - Potential for privilege escalation attacks"
     echo "  - Cannot guarantee secure baseline configuration"
     echo ""
-    echo "Please use this script ONLY on fresh installations or remove existing users:"
-    for user in "${non_root_users[@]}"; do
-        echo "  sudo userdel -r $user  # Remove user and home directory"
-    done
+    read -p "Delete these users and continue? (y/N): " -n 1 -r
     echo ""
-    echo "After removing existing users, run the script again on a clean system."
-    exit 1
+    
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        echo ""
+        echo "Removing existing non-root users..."
+        for user in "${non_root_users[@]}"; do
+            if id "$user" &>/dev/null; then
+                echo "Removing user: $user"
+                if deluser --remove-home --quiet "$user" 2>/dev/null; then
+                    echo "  Successfully removed user: $user"
+                else
+                    echo -e "\033[31m  ERROR: Failed to remove user: $user\033[0m"
+                    echo "  You may need to manually remove this user before continuing."
+                    exit 1
+                fi
+            fi
+        done
+        echo ""
+        echo -e "\033[92mAll non-root users removed. System is now secure for setup.\033[0m"
+    else
+        echo ""
+        echo "Exiting. Cannot proceed with existing users present."
+        echo "To manually remove users, run:"
+        for user in "${non_root_users[@]}"; do
+            echo "  deluser --remove-home $user"
+        done
+        exit 1
+    fi
 else
     echo "Security check passed: Only root user detected"
     echo "  System is ready for secure configuration"
