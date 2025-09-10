@@ -73,12 +73,12 @@ while [[ $# -gt 0 ]]; do
         --info)
             # Run info step directly without state management
             SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-            if [[ -f "$SCRIPT_DIR/steps/step_11_info.sh" ]]; then
-                source "$SCRIPT_DIR/steps/step_11_info.sh"
+            if [[ -f "$SCRIPT_DIR/steps/step_12_info.sh" ]]; then
+                source "$SCRIPT_DIR/steps/step_12_info.sh"
                 info
                 exit 0
             else
-                echo "Error: Info step not found: $SCRIPT_DIR/steps/step_11_info.sh"
+                echo "Error: Info step not found: $SCRIPT_DIR/steps/step_12_info.sh"
                 exit 1
             fi
             ;;
@@ -173,7 +173,9 @@ copy_script_to_bin() {
     local script_path="$(realpath "$0")"
     local script_name="setup.sh"
     local bin_path="/usr/local/bin/$script_name"
+    local info_path="/usr/local/bin/info"
     
+    # Copy main setup script
     if [[ "$script_path" != "$bin_path" ]]; then
         if [[ ! -f "$bin_path" ]] || [[ "$script_path" -nt "$bin_path" ]]; then
             echo "Copying setup script to $bin_path for global access..."
@@ -181,6 +183,21 @@ copy_script_to_bin() {
             chmod +x "$bin_path"
             echo "Script is now available globally as 'setup.sh'"
         fi
+    fi
+    
+    # Create info command wrapper
+    if [[ ! -f "$info_path" ]] || [[ "$script_path" -nt "$info_path" ]]; then
+        echo "Creating info command for easy system information access..."
+        cat > "$info_path" << 'EOF'
+#!/bin/bash
+# System Information Command - Debian Security Setup
+# Shows complete system configuration and usage information
+
+# Simply call the setup script with --info flag
+exec /usr/local/bin/setup.sh --info "$@"
+EOF
+        chmod +x "$info_path"
+        echo "Info command created: Use 'info' to display system configuration"
     fi
 }
 

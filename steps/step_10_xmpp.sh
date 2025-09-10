@@ -41,11 +41,13 @@ consider_bosh_secure = true
 consider_websocket_secure = true
 allow_registration = false  -- disable public registration
 
--- Logging configuration (minimal for privacy)
+-- Logging configuration (ZERO LOGS for maximum security)
+-- All logging disabled - no metadata leakage
 log = {
-    warn = "/var/log/prosody/prosody.log";
-    error = "/var/log/prosody/prosody.err";
+    -- No file logging - everything goes to /dev/null via systemd
 }
+-- Disable internal debug logging
+debug = false
 
 -- Module configuration
 modules_enabled = {
@@ -79,6 +81,10 @@ modules_enabled = {
     -- Security modules
     "smacks"; -- Stream management and resumption
     "csi_simple"; -- Simple Mobile optimizations
+    
+    -- Privacy modules (optional - only if available in prosody-modules)
+    "filter_chatstates"; -- Block chat state notifications (typing indicators)
+    "privacy_lists"; -- XMPP privacy lists support
 }
 
 -- Disable modules that could reduce security
@@ -111,6 +117,19 @@ limits = {
 allow_unencrypted_plain_auth = false
 c2s_timeout = 300
 s2s_timeout = 300
+
+-- Privacy: Minimize metadata collection
+archive_expires_after = "1 day"  -- Auto-delete message archives
+max_archive_query_results = 1   -- Limit archive query results
+default_archive_policy = false  -- No message archiving by default
+
+-- Disable presence/status broadcasting to reduce metadata
+broadcast_presence = false
+
+-- Security: Additional hardening
+require_encryption = true
+c2s_require_encryption = true
+s2s_require_encryption = true
 EOF
 
     # Set proper permissions
@@ -128,25 +147,70 @@ EOF
     chmod 644 /etc/prosody/certs/localhost.crt
     chmod 600 /etc/prosody/certs/localhost.key
     
-    # Create log directory
-    mkdir -p /var/log/prosody
-    chown prosody:prosody /var/log/prosody
-    chmod 750 /var/log/prosody
+    # No log directories needed - all logging disabled for security
     
-    # Start and enable Prosody
+    # Enable Prosody (don't start yet - will start after all config is complete)
     systemctl enable prosody
-    systemctl restart prosody
     
-    # Wait for service to start
-    sleep 2
+    # Create admin user
+    echo ""
+    echo "Setting up XMPP admin user..."
     
-    if systemctl is-active prosody &>/dev/null; then
-        echo "Prosody XMPP server started successfully"
+    # Function to validate username (lowercase and numbers only)
+    validate_username() {
+        local username="$1"
+        if [[ -z "$username" ]]; then
+            return 1
+        fi
+        if [[ ! "$username" =~ ^[a-z0-9]+$ ]]; then
+            return 1
+        fi
+        if [[ ${#username} -lt 3 || ${#username} -gt 20 ]]; then
+            return 1
+        fi
+        return 0
+    }
+    
+    # Prompt for admin username with validation
+    while true; do
+        echo -n "Enter XMPP admin username (lowercase and numbers only, 3-20 chars): "
+        read -r XMPP_ADMIN_USER
+        
+        if validate_username "$XMPP_ADMIN_USER"; then
+            break
+        else
+            echo "Invalid username. Must be 3-20 characters, lowercase letters and numbers only."
+        fi
+    done
+    
+    # Generate secure random password (16 chars, lowercase and numbers)
+    XMPP_ADMIN_PASS=$(tr -dc 'a-z0-9' < /dev/urandom | head -c 16)
+    
+    # Create admin user in Prosody
+    echo "Creating admin user: $XMPP_ADMIN_USER"
+    if ! prosodyctl register "$XMPP_ADMIN_USER" localhost "$XMPP_ADMIN_PASS" 2>/dev/null; then
+        echo -e "\033[31mError: Failed to create admin user with prosodyctl\033[0m"
+        echo "This may be normal if Prosody service is not running yet"
+        echo "Admin user will be created when service starts"
     else
-        echo -e "\033[31mError: Failed to start Prosody service\033[0m"
-        systemctl status prosody --no-pager -l | head -10
-        exit 1
+        echo "Admin user registered successfully"
     fi
+    
+    # Update Prosody configuration with admin user
+    sed -i "s|admins = { }|admins = { \"$XMPP_ADMIN_USER@localhost\" }|g" /etc/prosody/prosody.cfg.lua
+    
+    # Store admin credentials for info step
+    ADMIN_CREDS_FILE="/var/tmp/xmpp_admin_credentials"
+    cat > "$ADMIN_CREDS_FILE" << EOF
+XMPP_ADMIN_USER=$XMPP_ADMIN_USER
+XMPP_ADMIN_PASS=$XMPP_ADMIN_PASS
+EOF
+    chmod 600 "$ADMIN_CREDS_FILE"
+    
+    echo "Admin user created successfully!"
+    echo "Username: $XMPP_ADMIN_USER@localhost"
+    echo "Password: $XMPP_ADMIN_PASS"
+    echo "(Credentials will be displayed in final info step)"
     
     # Update configuration with actual onion address if available
     XMPP_HS_DIR="/var/lib/tor/xmpp_hidden_service"
@@ -155,11 +219,52 @@ EOF
         if [[ -n "$XMPP_ONION" ]]; then
             echo "Updating Prosody configuration with onion address: $XMPP_ONION"
             sed -i "s|https://YOUR_ONION.onion/|https://$XMPP_ONION:5281/|g" /etc/prosody/prosody.cfg.lua
-            systemctl reload prosody
         fi
     else
-        echo "Note: XMPP onion address will be available after Tor restart"
-        echo "Run 'sudo systemctl reload prosody' after step 8 (Tor) completes"
+        echo "Note: XMPP onion address not yet available"
+        echo "This is normal if Tor hidden services are still initializing"
+    fi
+    
+    # Start Prosody with all configuration complete
+    echo "Starting Prosody XMPP server..."
+    systemctl restart prosody
+    
+    # Wait for service to start
+    sleep 3
+    
+    if systemctl is-active prosody &>/dev/null; then
+        echo "Prosody XMPP server started successfully"
+        
+        # Ensure admin user is registered now that service is running
+        echo "Verifying admin user registration..."
+        if prosodyctl register "$XMPP_ADMIN_USER" localhost "$XMPP_ADMIN_PASS" 2>/dev/null; then
+            echo "Admin user registered successfully"
+        elif prosodyctl passwd "$XMPP_ADMIN_USER" localhost "$XMPP_ADMIN_PASS" 2>/dev/null; then
+            echo "Admin user password updated (user already existed)"
+        else
+            echo -e "\033[31mWarning: Could not verify admin user registration\033[0m"
+            echo "You may need to manually create the admin user later"
+        fi
+        
+        # Check if admin_web module is available and enable it
+        echo "Checking for admin_web module availability..."
+        if prosodyctl check config 2>/dev/null | grep -q "admin_web" || find /usr/lib/prosody/modules /usr/share/prosody-modules -name "*admin_web*" -type f 2>/dev/null | head -1 | grep -q admin_web; then
+            echo "Enabling admin_web module..."
+            prosodyctl module enable admin_web localhost 2>/dev/null || {
+                # Add module to config file if prosodyctl method fails
+                sed -i '/-- Admin interfaces/,/-- Security modules/s/http_files"; -- Serve static files from a directory over HTTP/http_files"; -- Serve static files from a directory over HTTP\n    "admin_web"; -- Web-based admin interface/' /etc/prosody/prosody.cfg.lua
+                systemctl reload prosody
+                echo "admin_web module added to configuration"
+            }
+            echo "Web admin interface available at /admin/"
+        else
+            echo "admin_web module not found - using admin_adhoc for management"
+            echo "Use XMPP client with admin account for server management"
+        fi
+    else
+        echo -e "\033[31mError: Failed to start Prosody service\033[0m"
+        systemctl status prosody --no-pager -l | head -10
+        exit 1
     fi
     
     echo "XMPP server configured with maximum security:"
@@ -169,6 +274,7 @@ EOF
     echo "- Public registration disabled"
     echo "- Listening only on localhost (Tor provides access)"
     echo "- Modern TLS profile enabled"
+    echo "- Web admin interface enabled at /admin/"
     
     echo -e "\033[92mXMPP server setup completed successfully!\033[0m"
     

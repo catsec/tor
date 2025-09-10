@@ -100,6 +100,8 @@ verify() {
     local REQUIRED_VERIFICATIONS=(
         "openssh-server:SSH daemon service:systemctl:sshd ssh openssh-server"
         "ufw:Uncomplicated Firewall:command:ufw"
+        "iptables:IPv4 packet filter:command:iptables"
+        "nftables:Modern packet filtering:command:nft"
         "tor:Anonymity network daemon:command:tor"
         "nyx:Tor monitoring tool:command:nyx"
         "nginx:Web server:command:nginx"
@@ -109,6 +111,7 @@ verify() {
         "cron:Task scheduler:systemctl:cron crond"
         "apparmor:Security framework:command:aa-status"
         "apparmor-utils:AppArmor utilities:command:aa-complain"
+        "prosody:XMPP server:command:prosodyctl"
     )
     
     local FAILED_VERIFICATIONS=()
@@ -159,6 +162,27 @@ verify() {
                                     echo "    [OK] WireGuard is functional"
                                 else
                                     echo "    [WARNING] WireGuard version check failed"
+                                fi
+                                ;;
+                            "prosodyctl")
+                                if prosodyctl --version &>/dev/null; then
+                                    echo "    [OK] Prosody control tool is functional"
+                                else
+                                    echo "    [WARNING] Prosodyctl version check failed"
+                                fi
+                                ;;
+                            "iptables")
+                                if iptables --version &>/dev/null; then
+                                    echo "    [OK] iptables is functional"
+                                else
+                                    echo "    [WARNING] iptables version check failed"
+                                fi
+                                ;;
+                            "nft")
+                                if nft --version &>/dev/null; then
+                                    echo "    [OK] nftables is functional"
+                                else
+                                    echo "    [WARNING] nft version check failed"
                                 fi
                                 ;;
                         esac

@@ -43,6 +43,8 @@ packages() {
     local REQUIRED_PACKAGES=(
         "openssh-server:SSH daemon for secure remote access"
         "ufw:Uncomplicated Firewall"
+        "iptables:IPv4 packet filter and NAT"
+        "nftables:Modern packet filtering framework"
         "tor:Anonymity network daemon"
         "nyx:Command-line monitor for tor"
         "nginx:Web server"
@@ -254,6 +256,23 @@ packages() {
         "--force-confdef";
         "--force-confold";
     }' > /etc/apt/apt.conf.d/99-packages-safety
+    
+    # Blacklist IPv6 packages for security (IPv4-only system)
+    echo 'Package: *ipv6*
+Pin: release *
+Pin-Priority: -1
+
+Package: radvd
+Pin: release *
+Pin-Priority: -1
+
+Package: wide-dhcpv6*
+Pin: release *
+Pin-Priority: -1
+
+Package: dibbler*
+Pin: release *
+Pin-Priority: -1' > /etc/apt/preferences.d/99-no-ipv6
     
     # Install packages with timeout and comprehensive options
     local INSTALL_SUCCESS=false

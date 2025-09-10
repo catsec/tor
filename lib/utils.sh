@@ -44,11 +44,12 @@ get_step_number() {
         "wireguard") echo "7" ;;
         "tor") echo "8" ;;
         "site") echo "9" ;;
-        "harden") echo "10" ;;
-        "info") echo "11" ;;
+        "xmpp") echo "10" ;;
+        "harden") echo "11" ;;
+        "info") echo "12" ;;
         *)
             echo "Invalid step: $step_name" >&2
-            echo "Valid steps: update, packages, verify, user, ssh, verifyssh, wireguard, tor, site, harden, info" >&2
+            echo "Valid steps: update, packages, verify, user, ssh, verifyssh, wireguard, tor, site, xmpp, harden, info" >&2
             exit 1
             ;;
     esac
@@ -190,7 +191,8 @@ should_run_step() {
                     7) echo "  - Step 7 (wireguard): Setup WireGuard VPN with one peer" ;;
                     8) echo "  - Step 8 (tor): Configure Tor proxy with secure settings" ;;
                     9) echo "  - Step 9 (site): Setup hardened nginx site with demo page" ;;
-                    10) echo "  - Step 10 (harden): System and kernel hardening" ;;
+                    10) echo "  - Step 10 (xmpp): Install and configure XMPP server" ;;
+                    11) echo "  - Step 11 (harden): System and kernel hardening" ;;
                 esac
             done
             echo "Please run steps in order or use --continue mode."

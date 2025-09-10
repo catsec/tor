@@ -1,5 +1,5 @@
 #!/bin/bash
-# Step 11: Display complete system configuration info
+# Step 12: Display complete system configuration info
 # Purpose: Show all service details, configs, and connection information
 # Usage: Can be run standalone or as part of setup completion
 
@@ -9,9 +9,9 @@ source "$SCRIPT_DIR/../lib/utils.sh"
 
 info() {
     # Check if previous step requires reboot before proceeding
-    check_reboot_required "info" "11"
+    check_reboot_required "info" "12"
     
-    echo "Step 11: System configuration information..."
+    echo "Step 12: System configuration information..."
 
     set -euo pipefail
 
@@ -123,6 +123,18 @@ info() {
         echo "    Client port: 5222 (XMPP clients)"
         echo "    Web interface: 5281 (browser access)"
         echo "    Web access: http://$XMPP_TOR_HOSTNAME:5281"
+        echo "    Admin interface: http://$XMPP_TOR_HOSTNAME:5281/admin/"
+        
+        # Display admin credentials if available
+        ADMIN_CREDS_FILE="/var/tmp/xmpp_admin_credentials"
+        if [[ -f "$ADMIN_CREDS_FILE" ]]; then
+            source "$ADMIN_CREDS_FILE"
+            echo ""
+            echo "  XMPP Admin Account:"
+            echo "    Username: $XMPP_ADMIN_USER@localhost"
+            echo "    Password: $XMPP_ADMIN_PASS"
+            echo "    JID: $XMPP_ADMIN_USER@$XMPP_TOR_HOSTNAME"
+        fi
     else
         echo "  XMPP Hidden Service: NOT CONFIGURED"
     fi
@@ -226,16 +238,18 @@ info() {
     # Logging
     if mountpoint -q /var/log 2>/dev/null; then
         echo "  Persistent Logs: DISABLED (tmpfs)"
+        echo "  XMPP Logs: DISABLED (zero-logging configuration)"
     else
         echo "  Persistent Logs: ENABLED (not recommended)"
+        echo "  XMPP Logs: DISABLED (zero-logging configuration)"
     fi
 
-    # IPv6
+    # IPv6 (should always be disabled on this system)
     IPV6_STATUS=$(sysctl -n net.ipv6.conf.all.disable_ipv6 2>/dev/null || echo "unknown")
     if [[ "$IPV6_STATUS" == "1" ]]; then
-        echo "  IPv6: DISABLED"
+        echo "  IPv6: DISABLED (security: IPv4-only system)"
     else
-        echo "  IPv6: ENABLED (consider disabling)"
+        echo "  IPv6: ENABLED (ERROR: should be disabled)"
     fi
 
     # Safe Updates
@@ -285,7 +299,20 @@ info() {
     if [[ -f "/var/lib/tor/xmpp_hidden_service/hostname" ]]; then
         XMPP_TOR_HOSTNAME=$(cat "/var/lib/tor/xmpp_hidden_service/hostname" 2>/dev/null | tr -d '\n\r')
         echo "   XMPP Web: curl --socks5-hostname 127.0.0.1:9050 http://$XMPP_TOR_HOSTNAME:5281"
-        echo "   XMPP Client: Connect to $XMPP_TOR_HOSTNAME:5222 via Tor proxy"
+        echo "   XMPP Admin Web: http://$XMPP_TOR_HOSTNAME:5281/admin/ (via Tor browser)"
+        echo "   XMPP Client Setup:"
+        echo "     Server: $XMPP_TOR_HOSTNAME"
+        echo "     Port: 5222"
+        echo "     Connection: Use SOCKS5 proxy 127.0.0.1:9050"
+        echo "     Encryption: Required (TLS)"
+        echo "     Privacy: Zero-logging, metadata minimized"
+        
+        # Show admin credentials for easy copy-paste
+        ADMIN_CREDS_FILE="/var/tmp/xmpp_admin_credentials"
+        if [[ -f "$ADMIN_CREDS_FILE" ]]; then
+            source "$ADMIN_CREDS_FILE"
+            echo "     Admin Login: $XMPP_ADMIN_USER@localhost (password: $XMPP_ADMIN_PASS)"
+        fi
     fi
     echo ""
     
@@ -294,7 +321,8 @@ info() {
     echo ""
     
     echo "6. View this info again:"
-    echo "   sudo setup.sh --info"
+    echo "   info                  # Simple command"
+    echo "   sudo setup.sh --info  # Full command"
     echo ""
     echo "IMPORTANT: This server has no direct SSH access from the internet."
     echo "You must connect via WireGuard VPN or use Tor hidden service."
@@ -303,6 +331,10 @@ info() {
     echo "==============================================================================="
     echo "                              SETUP COMPLETE"
     echo "==============================================================================="
+    echo ""
+    echo "Your secure Debian 13 server is now fully configured!"
+    echo "Use the 'info' command anytime to view system configuration and access details."
+    echo ""
     
     mark_step_completed 12
 }

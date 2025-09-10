@@ -1,5 +1,5 @@
 #!/bin/bash
-# Step 10: System & Kernel Hardening (UFW, AppArmor, No-Logs, SSH scoping)
+# Step 11: System & Kernel Hardening (UFW, AppArmor, No-Logs, SSH scoping)
 # Purpose: Lock down networking, kernel, logging, and service sandboxes
 # Security: Enforces strict firewalling, disables persistent logs, enables AppArmor
 
@@ -8,7 +8,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/../lib/utils.sh"
 
 harden() {
-    echo "Step 10: System & kernel hardening..."
+    echo "Step 11: System & kernel hardening..."
 
     set -euo pipefail
     
@@ -63,10 +63,17 @@ vm.mmap_rnd_compat_bits=16
 # Disable coredumps
 kernel.core_pattern=|/bin/false
 fs.suid_dumpable=0
-# Disable IPv6 completely
+# Disable IPv6 completely (security: IPv4-only system)
 net.ipv6.conf.all.disable_ipv6=1
 net.ipv6.conf.default.disable_ipv6=1
 net.ipv6.conf.lo.disable_ipv6=1
+# Additional IPv6 hardening
+net.ipv6.conf.all.accept_ra=0
+net.ipv6.conf.default.accept_ra=0
+net.ipv6.conf.all.accept_redirects=0
+net.ipv6.conf.default.accept_redirects=0
+net.ipv6.conf.all.autoconf=0
+net.ipv6.conf.default.autoconf=0
 # WireGuard needs forwarding
 net.ipv4.ip_forward=1
 EOF
@@ -142,6 +149,23 @@ EOF
         systemctl restart tor || true
     fi
 
+    # Prosody: disable all logging (CRITICAL for privacy)
+    if [[ -f /etc/prosody/prosody.cfg.lua ]]; then
+        echo "Disabling Prosody logging for maximum privacy..."
+        # systemd drop-in to null prosody stdout/err
+        mkdir -p /etc/systemd/system/prosody.service.d
+        cat >/etc/systemd/system/prosody.service.d/nolog.conf <<'EOF'
+[Service]
+StandardOutput=null
+StandardError=null
+# Disable all logging output
+Environment="PROSODY_NO_LOG=1"
+EOF
+        systemctl daemon-reload
+        systemctl restart prosody || true
+        echo "Prosody logging disabled - zero metadata leakage"
+    fi
+
     # ---------------------------------------------------------------------
     # 4) SSH: restrict listening to loopback and wg0 only
     # ---------------------------------------------------------------------
@@ -187,24 +211,26 @@ EOF
     # ---------------------------------------------------------------------
     ufw --force disable || true
 
-    # Detect external interface with validation
-    EXT_IF=$(ip route get 1.1.1.1 2>/dev/null | awk '/dev/ {print $5; exit}')
-    [[ -z "${EXT_IF:-}" ]] && EXT_IF=$(ip route show default 2>/dev/null | awk '/default/ {print $5; exit}')
+    # Detect external interface (clean system with guaranteed tools)
+    echo "Detecting external network interface..."
     
-    # Validate interface exists and is up
-    if [[ -z "${EXT_IF:-}" ]] || ! ip link show "$EXT_IF" &>/dev/null; then
-        echo "Warning: Could not detect valid external interface"
-        echo "Available interfaces:"
-        ip link show | awk -F': ' '/^[0-9]+:/ && !/lo:/ {print "  " $2}'
-        echo "UFW rules may need manual adjustment"
-        # Use first non-loopback interface as fallback, remove @ suffix if present
-        EXT_IF=$(ip link show | awk -F': ' '/^[0-9]+:/ && !/lo:/ {gsub(/@.*/, "", $2); print $2; exit}')
+    # Primary method: route to well-known DNS server
+    EXT_IF=$(ip route get 1.1.1.1 2>/dev/null | awk '/dev/ {print $5; exit}')
+    
+    # Fallback: default route interface
+    if [[ -z "$EXT_IF" ]]; then
+        EXT_IF=$(ip route show default | awk '/default/ {print $5; exit}')
     fi
     
-    # Final check - if still no interface, use eth0 as last resort
-    if [[ -z "${EXT_IF:-}" ]]; then
-        EXT_IF="eth0"
-        echo "Warning: Using eth0 as fallback interface"
+    # Verify interface exists
+    if [[ -n "$EXT_IF" ]] && ip link show "$EXT_IF" &>/dev/null; then
+        IFACE_STATE=$(ip link show "$EXT_IF" | awk '/state/ {print $9}')
+        echo "Selected external interface: $EXT_IF (state: $IFACE_STATE)"
+    else
+        echo "Error: Could not determine external interface"
+        echo "Available interfaces:"
+        ip link show | awk -F': ' '/^[0-9]+:/ && !/lo:/ {gsub(/@.*/, "", $2); print "  " $2}'
+        exit 1
     fi
 
     # Reset and set defaults
@@ -228,13 +254,31 @@ EOF
     # Nginx is localhost-only (no UFW rule)
 
     # Outgoing: allow Tor daemon only (backend-specific)
-    # Determine UFW backend
+    # Determine UFW backend (both iptables and nftables are guaranteed to be installed)
     BACKEND=$(awk -F= '/^Backend=/{print tolower($2)}' /etc/ufw/ufw.conf 2>/dev/null | tr -d ' \t')
+    
+    # Default to nftables if backend not specified (modern Debian 13 default)
+    if [[ -z "$BACKEND" ]]; then
+        BACKEND="nftables"
+    fi
+    
+    echo "Using UFW backend: $BACKEND"
+    
     if [[ "$BACKEND" == "iptables" ]]; then
         # Insert owner-match accepts in before.rules
         if ! grep -q 'HARDEN-OWNER-ALLOW' /etc/ufw/before.rules 2>/dev/null; then
-            cp /etc/ufw/before.rules /etc/ufw/before.rules.backup.$(date +%Y%m%d_%H%M%S) 2>/dev/null || true
-            awk '
+            echo "Adding iptables rules for Tor and WireGuard egress..."
+            
+            # Verify before.rules exists and create backup
+            if [[ ! -f /etc/ufw/before.rules ]]; then
+                echo "Error: /etc/ufw/before.rules not found"
+                exit 1
+            fi
+            
+            cp /etc/ufw/before.rules "/etc/ufw/before.rules.backup.$(date +%Y%m%d_%H%M%S)" 2>/dev/null || true
+            
+            # Apply iptables rules with error checking
+            if awk '
                 BEGIN{done=0}
                 {print}
                 /^# End required lines/ && !done {
@@ -245,19 +289,44 @@ EOF
                     print "-A ufw-before-output -p udp --dport 51820 -j ACCEPT           # HARDEN-OWNER-ALLOW"
                     print "COMMIT"
                     done=1
-                }' /etc/ufw/before.rules > /etc/ufw/before.rules.tmp && mv /etc/ufw/before.rules.tmp /etc/ufw/before.rules
+                }' /etc/ufw/before.rules > /etc/ufw/before.rules.tmp; then
+                
+                # Validate the new file has content and the marker
+                if [[ -s /etc/ufw/before.rules.tmp ]] && grep -q 'HARDEN-OWNER-ALLOW' /etc/ufw/before.rules.tmp; then
+                    mv /etc/ufw/before.rules.tmp /etc/ufw/before.rules
+                    echo "✓ iptables egress rules added successfully"
+                else
+                    echo "✗ Failed to add iptables rules - keeping original"
+                    rm -f /etc/ufw/before.rules.tmp
+                fi
+            else
+                echo "✗ Failed to process iptables rules"
+                rm -f /etc/ufw/before.rules.tmp
+            fi
+        else
+            echo "iptables egress rules already present"
         fi
     else
         # nftables backend: create a high-priority output chain that accepts debian-tor and wg handshakes
+        echo "Adding nftables rules for Tor and WireGuard egress..."
+        
         if ! nft list table inet harden_egress >/dev/null 2>&1; then
+            echo "Creating nftables harden_egress table..."
             nft add table inet harden_egress
             nft add chain inet harden_egress output '{ type filter hook output priority -100; policy accept; }'
             nft add rule inet harden_egress output meta skuid "debian-tor" accept
             nft add rule inet harden_egress output udp dport 51820 accept
+            echo "✓ nftables egress rules created successfully"
         else
-            # ensure rules exist
-            nft list chain inet harden_egress output | grep -q 'skuid "debian-tor"' || nft add rule inet harden_egress output meta skuid "debian-tor" accept
-            nft list chain inet harden_egress output | grep -q 'udp dport 51820' || nft add rule inet harden_egress output udp dport 51820 accept
+            echo "nftables harden_egress table exists, checking rules..."
+            # Ensure rules exist
+            if ! nft list chain inet harden_egress output | grep -q 'skuid "debian-tor"'; then
+                nft add rule inet harden_egress output meta skuid "debian-tor" accept
+            fi
+            if ! nft list chain inet harden_egress output | grep -q 'udp dport 51820'; then
+                nft add rule inet harden_egress output udp dport 51820 accept
+            fi
+            echo "✓ nftables rules verified"
         fi
     fi
 
@@ -316,7 +385,35 @@ CapabilityBoundingSet=CAP_NET_BIND_SERVICE CAP_NET_ADMIN CAP_NET_RAW
 EOF
 
     systemctl daemon-reload
-    systemctl restart "$SSH_SERVICE" nginx tor || true
+    
+    # Restart services individually with proper error handling
+    echo "Restarting hardened services..."
+    
+    for service in "$SSH_SERVICE" nginx tor; do
+        echo "Restarting $service with new hardening configuration..."
+        if systemctl restart "$service" 2>/dev/null; then
+            if systemctl is-active "$service" &>/dev/null; then
+                echo "✓ $service restarted successfully"
+            else
+                echo "⚠ $service restarted but not active - checking status"
+                systemctl status "$service" --no-pager -l | head -3
+            fi
+        else
+            echo "✗ Failed to restart $service - checking configuration"
+            systemctl status "$service" --no-pager -l | head -5
+            
+            # For SSH, this is critical - try to restore from backup
+            if [[ "$service" == "$SSH_SERVICE" ]]; then
+                echo "SSH restart failed - attempting recovery..."
+                LATEST_BACKUP=$(ls -t /etc/ssh/sshd_config.backup.* 2>/dev/null | head -1)
+                if [[ -n "$LATEST_BACKUP" ]]; then
+                    cp "$LATEST_BACKUP" /etc/ssh/sshd_config
+                    echo "Restored SSH config from: $LATEST_BACKUP"
+                    systemctl restart "$SSH_SERVICE" && echo "✓ SSH recovered" || echo "✗ SSH recovery failed"
+                fi
+            fi
+        fi
+    done
 
     # ---------------------------------------------------------------------
     # 7) Disable coredumps in limits.conf
@@ -398,7 +495,41 @@ EOF
     fi
     
     if [[ "$GRUB_MODIFIED" == "true" ]]; then
-        update-grub || true
+        echo "Updating GRUB configuration with security parameters..."
+        
+        # Backup current grub.cfg before update
+        if [[ -f /boot/grub/grub.cfg ]]; then
+            cp /boot/grub/grub.cfg "/boot/grub/grub.cfg.backup.$(date +%Y%m%d_%H%M%S)" 2>/dev/null || true
+        fi
+        
+        # Update grub with validation
+        if update-grub 2>/dev/null; then
+            echo "✓ GRUB configuration updated successfully"
+            
+            # Verify new grub.cfg was generated
+            if [[ -f /boot/grub/grub.cfg ]] && [[ -s /boot/grub/grub.cfg ]]; then
+                # Check if our security parameters are present
+                if grep -q "apparmor=1" /boot/grub/grub.cfg 2>/dev/null; then
+                    echo "✓ Security parameters verified in GRUB configuration"
+                else
+                    echo "⚠ Warning: Security parameters may not be active in GRUB"
+                fi
+            else
+                echo "⚠ Warning: GRUB configuration file may be corrupted"
+            fi
+        else
+            echo "✗ GRUB update failed - kernel parameters may not be applied"
+            echo "Manual intervention may be required for boot parameters"
+            
+            # Restore backup if available
+            LATEST_GRUB_BACKUP=$(ls -t /boot/grub/grub.cfg.backup.* 2>/dev/null | head -1)
+            if [[ -n "$LATEST_GRUB_BACKUP" ]]; then
+                echo "Restoring GRUB configuration from backup..."
+                cp "$LATEST_GRUB_BACKUP" /boot/grub/grub.cfg && echo "✓ GRUB backup restored"
+            fi
+        fi
+    else
+        echo "No GRUB changes needed"
     fi
 
     # Create minimal profiles if missing
@@ -560,11 +691,9 @@ EOF
     fi
     
     # Disable UFW logging to reduce privacy leakage in logs
-    if command -v ufw >/dev/null 2>&1; then
-        echo "Disabling UFW logging for privacy..."
-        ufw logging off 2>/dev/null || true
-        echo "UFW logging disabled (reduces IP/MAC logging)"
-    fi
+    echo "Disabling UFW logging for privacy..."
+    ufw logging off
+    echo "UFW logging disabled (reduces IP/MAC logging)"
     
     # Create privacy summary
     echo ""
@@ -595,6 +724,11 @@ EOF
 */10 * * * * root find /var/log -type f -name "*.log" -exec truncate -s 0 {} \; 2>/dev/null || true
 */10 * * * * root find /var/log -type f -name "*.log.*" -delete 2>/dev/null || true
 */10 * * * * root rm -rf /var/log/journal/* 2>/dev/null || true
+# Purge any potential Prosody logs (should not exist but extra safety)
+*/10 * * * * root rm -rf /var/log/prosody/* 2>/dev/null || true
+*/10 * * * * root find /var/lib/prosody -name "*.log" -delete 2>/dev/null || true
+# Purge Prosody message archives and user data for privacy
+*/10 * * * * root find /var/lib/prosody -name "*archive*" -delete 2>/dev/null || true
 # Recreate essential log directories that services may expect
 */10 * * * * root mkdir -p /var/log/nginx /var/log/tor 2>/dev/null || true
 EOF
