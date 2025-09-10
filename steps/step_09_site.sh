@@ -16,7 +16,7 @@ site() {
     
     # DEPENDENCY CHECK: Ensure nginx is installed
     if ! command -v nginx &>/dev/null; then
-        echo "Error: nginx not found. Please run steps 2 and 3 (packages and verify) first."
+        echo -e "\033[31mError: nginx not found. Please run steps 2 and 3 (packages and verify) first.\033[0m"
         exit 1
     fi
     
@@ -167,11 +167,11 @@ EOF
         if systemctl is-active nginx &>/dev/null; then
             echo "Nginx service started successfully!"
         else
-            echo "Error: Failed to start nginx service"
+            echo -e "\033[31mError: Failed to start nginx service\033[0m"
             exit 1
         fi
     else
-        echo "Error: Invalid nginx configuration"
+        echo -e "\033[31mError: Invalid nginx configuration\033[0m"
         # Restore backup if it exists
         if [[ -f /etc/nginx/sites-available/default.backup.* ]]; then
             latest_backup=$(ls -t /etc/nginx/sites-available/default.backup.* | head -n1)
@@ -208,6 +208,8 @@ EOF
     echo "- Local: curl http://127.0.0.1"
     echo "- Via Tor: curl --socks5-hostname 127.0.0.1:9050 http://\$(cat /var/lib/tor/nginx_hidden_service/hostname)"
     echo ""
+    
+    echo -e "\033[92mHardened nginx site setup completed successfully!\033[0m"
     
     mark_step_completed 9
 }

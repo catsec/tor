@@ -70,7 +70,7 @@ verify() {
     
     # Check if we're running as root
     if [[ $EUID -ne 0 ]]; then
-        echo "ERROR: Verification must be run as root" >&2
+        echo -e "\033[31mERROR: Verification must be run as root\033[0m" >&2
         exit 1
     fi
     
@@ -78,7 +78,7 @@ verify() {
     local REQUIRED_SYSTEM_CMDS=("systemctl" "dpkg" "which" "ps" "netstat" "ss")
     for cmd in "${REQUIRED_SYSTEM_CMDS[@]}"; do
         if ! command -v "$cmd" &>/dev/null; then
-            echo "ERROR: Required system command '$cmd' not found" >&2
+            echo -e "\033[31mERROR: Required system command '$cmd' not found\033[0m" >&2
             exit 1
         fi
     done
@@ -130,35 +130,35 @@ verify() {
                 for cmd in $check_targets; do
                     if command -v "$cmd" &>/dev/null; then
                         command_found=true
-                        echo "  ✓ Command available: $cmd"
+                        echo "  [OK] Command available: $cmd"
                         # Additional validation for command functionality
                         case "$cmd" in
                             "ufw")
                                 if ufw --version &>/dev/null; then
-                                    echo "    ✓ UFW is functional"
+                                    echo "    [OK] UFW is functional"
                                 else
-                                    echo "    ⚠ UFW version check failed"
+                                    echo "    [WARNING] UFW version check failed"
                                 fi
                                 ;;
                             "tor")
                                 if tor --version &>/dev/null; then
-                                    echo "    ✓ Tor is functional"
+                                    echo "    [OK] Tor is functional"
                                 else
-                                    echo "    ⚠ Tor version check failed"
+                                    echo "    [WARNING] Tor version check failed"
                                 fi
                                 ;;
                             "nginx")
                                 if nginx -t &>/dev/null; then
-                                    echo "    ✓ Nginx configuration is valid"
+                                    echo "    [OK] Nginx configuration is valid"
                                 else
-                                    echo "    ⚠ Nginx configuration test failed"
+                                    echo "    [WARNING] Nginx configuration test failed"
                                 fi
                                 ;;
                             "wg")
                                 if wg --version &>/dev/null; then
-                                    echo "    ✓ WireGuard is functional"
+                                    echo "    [OK] WireGuard is functional"
                                 else
-                                    echo "    ⚠ WireGuard version check failed"
+                                    echo "    [WARNING] WireGuard version check failed"
                                 fi
                                 ;;
                         esac
@@ -170,7 +170,7 @@ verify() {
                     PASSED_VERIFICATIONS+=("$package")
                 else
                     FAILED_VERIFICATIONS+=("$package")
-                    echo "  ✗ No commands found: $check_targets"
+                    echo -e "  \033[31m[ERROR] No commands found: $check_targets\033[0m"
                 fi
                 ;;
                 
@@ -180,7 +180,7 @@ verify() {
                     if systemctl list-unit-files "$service*" &>/dev/null; then
                         service_found=true
                         local service_state=$(systemctl is-enabled "$service" 2>/dev/null || echo "not-found")
-                        echo "  ✓ Service available: $service (state: $service_state)"
+                        echo "  [OK] Service available: $service (state: $service_state)"
                         
                         # Check if service can be started (don't actually start it)
                         if systemctl status "$service" &>/dev/null; then
@@ -195,7 +195,7 @@ verify() {
                     PASSED_VERIFICATIONS+=("$package")
                 else
                     FAILED_VERIFICATIONS+=("$package")
-                    echo "  ✗ No services found: $check_targets"
+                    echo -e "  \033[31m[ERROR] No services found: $check_targets\033[0m"
                 fi
                 ;;
         esac
@@ -214,7 +214,7 @@ verify() {
             echo "  - $failed"
         done
         echo ""
-        echo "ERROR: Package verification failed for ${#FAILED_VERIFICATIONS[@]} packages" >&2
+        echo -e "\033[31mERROR: Package verification failed for ${#FAILED_VERIFICATIONS[@]} packages\033[0m" >&2
         echo "Please run step 2 (packages) again to fix installation issues" >&2
         exit 1
     fi
@@ -230,7 +230,7 @@ verify() {
     local SSH_SERVICE=$(detect_ssh_service)
     
     if [[ -z "$SSH_SERVICE" ]]; then
-        echo "ERROR: Could not detect SSH service (tried: ssh, sshd, openssh-server)" >&2
+        echo -e "\033[31mERROR: Could not detect SSH service (tried: ssh, sshd, openssh-server)\033[0m" >&2
         echo "SSH service detection failed - this will prevent SSH hardening" >&2
         exit 1
     fi
@@ -240,24 +240,24 @@ verify() {
     # Validate SSH service functionality
     if systemctl is-enabled "$SSH_SERVICE" &>/dev/null; then
         local ssh_enabled_state=$(systemctl is-enabled "$SSH_SERVICE" 2>/dev/null)
-        echo "  ✓ SSH service is enabled: $ssh_enabled_state"
+        echo "  [OK] SSH service is enabled: $ssh_enabled_state"
     else
-        echo "  ⚠ SSH service is not enabled (will be enabled in SSH hardening step)"
+        echo "  [WARNING] SSH service is not enabled (will be enabled in SSH hardening step)"
     fi
     
     # Check SSH configuration file exists
     if [[ -f "/etc/ssh/sshd_config" ]]; then
-        echo "  ✓ SSH configuration file exists: /etc/ssh/sshd_config"
+        echo "  [OK] SSH configuration file exists: /etc/ssh/sshd_config"
         
         # Basic configuration validation
         if sshd -t 2>/dev/null; then
-            echo "  ✓ SSH configuration is valid"
+            echo "  [OK] SSH configuration is valid"
         else
-            echo "  ⚠ SSH configuration has issues (will be fixed in hardening)"
+            echo "  [WARNING] SSH configuration has issues (will be fixed in hardening)"
         fi
     else
-        echo "  ✗ SSH configuration file missing: /etc/ssh/sshd_config"
-        echo "ERROR: SSH configuration file not found" >&2
+        echo -e "  \033[31m[ERROR] SSH configuration file missing: /etc/ssh/sshd_config\033[0m"
+        echo -e "\033[31mERROR: SSH configuration file not found\033[0m" >&2
         exit 1
     fi
     
@@ -286,18 +286,18 @@ verify() {
         case "$type" in
             "directory")
                 if [[ -d "$path" ]]; then
-                    echo "  ✓ Found $description: $path"
+                    echo "  [OK] Found $description: $path"
                 else
                     CONFIG_WARNINGS+=("Missing $description: $path")
-                    echo "  ⚠ Missing $description: $path"
+                    echo "  [WARNING] Missing $description: $path"
                 fi
                 ;;
             "file")
                 if [[ -f "$path" ]]; then
-                    echo "  ✓ Found $description: $path"
+                    echo "  [OK] Found $description: $path"
                 else
                     CONFIG_WARNINGS+=("Missing $description: $path")
-                    echo "  ⚠ Missing $description: $path"
+                    echo "  [WARNING] Missing $description: $path"
                 fi
                 ;;
         esac
@@ -319,31 +319,31 @@ verify() {
     
     # Check for WireGuard kernel support
     if modinfo wireguard &>/dev/null; then
-        echo "  ✓ WireGuard kernel module available"
+        echo "  [OK] WireGuard kernel module available"
     elif [[ -f "/sys/module/wireguard/version" ]]; then
-        echo "  ✓ WireGuard kernel module loaded"
+        echo "  [OK] WireGuard kernel module loaded"
     else
-        echo "  ⚠ WireGuard kernel module not found (may need kernel headers)"
+        echo "  [WARNING] WireGuard kernel module not found (may need kernel headers)"
     fi
     
     # Check network stack availability
     if [[ -d "/proc/sys/net" ]]; then
-        echo "  ✓ Network stack available"
+        echo "  [OK] Network stack available"
         
         # Check IPv4 forwarding capability
         if [[ -f "/proc/sys/net/ipv4/ip_forward" ]]; then
-            echo "  ✓ IPv4 forwarding control available"
+            echo "  [OK] IPv4 forwarding control available"
         fi
         
         # Check if we can manipulate iptables (needed for UFW)
         if command -v iptables &>/dev/null; then
-            echo "  ✓ iptables command available"
+            echo "  [OK] iptables command available"
         else
-            echo "  ⚠ iptables command not found"
+            echo "  [WARNING] iptables command not found"
         fi
     else
-        echo "  ✗ Network stack not available"
-        echo "ERROR: Network stack unavailable - VPN and firewall setup will fail" >&2
+        echo -e "  \033[31m[ERROR] Network stack not available\033[0m"
+        echo -e "\033[31mERROR: Network stack unavailable - VPN and firewall setup will fail\033[0m" >&2
         exit 1
     fi
     
@@ -355,35 +355,31 @@ verify() {
     # Check available memory (services need sufficient RAM)
     local AVAILABLE_MEM=$(awk '/MemAvailable:/ {print int($2/1024)}' /proc/meminfo 2>/dev/null || echo "0")
     if [[ $AVAILABLE_MEM -gt 256 ]]; then
-        echo "  ✓ Sufficient memory available: ${AVAILABLE_MEM}MB"
+        echo "  [OK] Sufficient memory available: ${AVAILABLE_MEM}MB"
     else
-        echo "  ⚠ Low memory available: ${AVAILABLE_MEM}MB (may affect service performance)"
+        echo "  [WARNING] Low memory available: ${AVAILABLE_MEM}MB (may affect service performance)"
     fi
     
     # Check disk space for logs and temporary files
     local AVAILABLE_DISK=$(df /var/log | awk 'NR==2 {print int($4/1024)}' 2>/dev/null || echo "0")
     if [[ $AVAILABLE_DISK -gt 100 ]]; then
-        echo "  ✓ Sufficient disk space: ${AVAILABLE_DISK}MB"
+        echo "  [OK] Sufficient disk space: ${AVAILABLE_DISK}MB"
     else
-        echo "  ⚠ Low disk space: ${AVAILABLE_DISK}MB (may affect logging)"
+        echo "  [WARNING] Low disk space: ${AVAILABLE_DISK}MB (may affect logging)"
     fi
     
     # Check if we can create temporary files
     if touch "$TEMP_DIR/test_write" 2>/dev/null; then
         rm -f "$TEMP_DIR/test_write"
-        echo "  ✓ Filesystem write capability confirmed"
+        echo "  [OK] Filesystem write capability confirmed"
     else
-        echo "  ✗ Cannot write to temporary directory"
-        echo "ERROR: Filesystem write issues detected" >&2
+        echo -e "  \033[31m[ERROR] Cannot write to temporary directory\033[0m"
+        echo -e "\033[31mERROR: Filesystem write issues detected\033[0m" >&2
         exit 1
     fi
     
-    # Final verification summary
     local TOTAL_TIME=$(($(date +%s) - START_TIME))
-    echo ""
-    echo "Verification completed in ${TOTAL_TIME} seconds"
-    echo "All required packages and services are properly installed and functional"
-    echo ""
+    echo -e "\033[92mVerification completed in ${TOTAL_TIME} seconds\033[0m"
     
     # Check if this step requires a reboot
     check_current_reboot_needed "verify" "3"

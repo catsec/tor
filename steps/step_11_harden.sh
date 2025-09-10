@@ -532,7 +532,7 @@ apt upgrade -y --no-install-recommends
 INSTALLED_AFTER=$(dpkg-query -f='${binary:Package}\n' -W | sort)
 
 if ! diff -q <(echo "$INSTALLED_BEFORE") <(echo "$INSTALLED_AFTER") >/dev/null; then
-    echo "ERROR: New packages were installed! Rolling back..."
+    echo -e "\033[31mERROR: New packages were installed! Rolling back...\033[0m"
     NEW_PACKAGES=$(comm -13 <(echo "$INSTALLED_BEFORE") <(echo "$INSTALLED_AFTER"))
     echo "New packages detected:"
     echo "$NEW_PACKAGES"
@@ -545,7 +545,50 @@ EOF
     chmod +x /usr/local/bin/safe-update
 
     # ---------------------------------------------------------------------
-    # 12) Cron job to purge any logs every 10 minutes
+    # 12) Privacy hardening - disable telemetry and data collection
+    # ---------------------------------------------------------------------
+    echo "Checking for privacy and telemetry concerns..."
+    
+    # Check and disable Debian popularity contest if present
+    if dpkg -l | grep -q popularity-contest 2>/dev/null; then
+        echo "Found popularity-contest package - disabling telemetry..."
+        echo 'PARTICIPATE="no"' > /etc/popularity-contest.conf
+        systemctl disable popularity-contest 2>/dev/null || true
+        echo "Debian popularity contest telemetry disabled"
+    else
+        echo "No popularity-contest package found - good for privacy"
+    fi
+    
+    # Disable UFW logging to reduce privacy leakage in logs
+    if command -v ufw >/dev/null 2>&1; then
+        echo "Disabling UFW logging for privacy..."
+        ufw logging off 2>/dev/null || true
+        echo "UFW logging disabled (reduces IP/MAC logging)"
+    fi
+    
+    # Create privacy summary
+    echo ""
+    echo "=== PRIVACY & TELEMETRY STATUS ==="
+    echo "Installed packages privacy review:"
+    echo "  openssh-server: No telemetry (privacy-clean)"
+    echo "  tor: Designed for anonymity (privacy-clean)"
+    echo "  nginx: No default telemetry (privacy-clean)"  
+    echo "  wireguard: No telemetry (privacy-clean)"
+    echo "  curl: No telemetry (privacy-clean)"
+    echo "  ufw: Logging disabled for privacy"
+    echo "  nyx: Local Tor monitoring only (privacy-clean)"
+    echo "  qrencode: Local generation only (privacy-clean)"
+    
+    if dpkg -l | grep -q popularity-contest 2>/dev/null; then
+        echo "  popularity-contest: Disabled"
+    else
+        echo "  popularity-contest: Not installed"
+    fi
+    echo "==================================="
+    echo ""
+
+    # ---------------------------------------------------------------------
+    # 13) Cron job to purge any logs every 10 minutes
     # ---------------------------------------------------------------------
     cat >/etc/cron.d/log-purge <<'EOF'
 # Safely clear log files every 10 minutes while preserving directory structure
@@ -556,12 +599,12 @@ EOF
 */10 * * * * root mkdir -p /var/log/nginx /var/log/tor 2>/dev/null || true
 EOF
 
-    echo "Hardening complete. Note: AppArmor kernel args take effect after reboot."
+    echo -e "\033[92mHardening complete. Note: AppArmor kernel args take effect after reboot.\033[0m"
     
     # Hardening step almost always requires reboot due to kernel parameters
-    set_reboot_required "harden" "10" "Kernel command line parameters, IPv6 disable, CPU mitigations, and AppArmor changes require reboot"
+    set_reboot_required "harden" "11" "Kernel command line parameters, IPv6 disable, CPU mitigations, and AppArmor changes require reboot"
     
-    mark_step_completed 10
+    mark_step_completed 11
 }
 
 # Execute function if called directly

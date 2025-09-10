@@ -54,6 +54,11 @@ packages() {
         "apparmor-utils:AppArmor utilities"
         "apparmor-profiles:AppArmor profiles for common applications"
         "apparmor-profiles-extra:Additional AppArmor profiles"
+        "prosody:XMPP server for secure messaging"
+        "prosody-modules:Additional modules for Prosody XMPP server"
+        "lua-bit32:Lua bit manipulation library for Prosody"
+        "libjs-bootstrap4:Bootstrap CSS framework for web interfaces"
+        "libjs-jquery:jQuery JavaScript library"
     )
     
     # Cleanup function for errors
@@ -93,20 +98,20 @@ packages() {
     
     # Check if we're running as root
     if [[ $EUID -ne 0 ]]; then
-        echo "ERROR: Package installation must be run as root" >&2
+        echo -e "\033[31mERROR: Package installation must be run as root\033[0m" >&2
         exit 1
     fi
     
     # Check available disk space (need at least 2GB free for all packages)
     local AVAILABLE_SPACE=$(df /var/cache/apt/archives | awk 'NR==2 {print $4}')
     if [[ $AVAILABLE_SPACE -lt 2097152 ]]; then  # 2GB in KB
-        echo "ERROR: Insufficient disk space for package installation (need 2GB, have $(($AVAILABLE_SPACE/1024))MB)" >&2
+        echo -e "\033[31mERROR: Insufficient disk space for package installation (need 2GB, have $(($AVAILABLE_SPACE/1024))MB)\033[0m" >&2
         exit 1
     fi
     
     # Verify system is Debian-based
     if [[ ! -f /etc/debian_version ]]; then
-        echo "ERROR: This script is designed for Debian systems only" >&2
+        echo -e "\033[31mERROR: This script is designed for Debian systems only\033[0m" >&2
         exit 1
     fi
     
@@ -114,7 +119,7 @@ packages() {
     local REQUIRED_CMDS=("apt-get" "dpkg" "apt" "systemctl")
     for cmd in "${REQUIRED_CMDS[@]}"; do
         if ! command -v "$cmd" &>/dev/null; then
-            echo "ERROR: Required command '$cmd' not found" >&2
+            echo -e "\033[31mERROR: Required command '$cmd' not found\033[0m" >&2
             exit 1
         fi
     done
@@ -122,7 +127,7 @@ packages() {
     # Verify package lists are up to date (from step 1)
     local REPO_FILES_COUNT=$(find /var/lib/apt/lists -name "*Release" -type f 2>/dev/null | wc -l)
     if [[ $REPO_FILES_COUNT -eq 0 ]]; then
-        echo "ERROR: No repository Release files found" >&2
+        echo -e "\033[31mERROR: No repository Release files found\033[0m" >&2
         echo "Please run step 1 (update) first to update package lists" >&2
         exit 1
     fi
@@ -153,7 +158,7 @@ packages() {
             done
             
             if fuser "$lock_file" 2>/dev/null; then
-                echo "ERROR: APT is still locked after waiting. Another package manager may be running." >&2
+                echo -e "\033[31mERROR: APT is still locked after waiting. Another package manager may be running.\033[0m" >&2
                 exit 1
             fi
         fi
@@ -169,11 +174,11 @@ packages() {
             echo "Package configuration repair successful"
             # Recheck after repair
             if ! apt-get check 2>/dev/null; then
-                echo "ERROR: Package system still has issues after repair attempt" >&2
+                echo -e "\033[31mERROR: Package system still has issues after repair attempt\033[0m" >&2
                 exit 1
             fi
         else
-            echo "ERROR: Cannot repair package system configuration" >&2
+            echo -e "\033[31mERROR: Cannot repair package system configuration\033[0m" >&2
             exit 1
         fi
     fi
@@ -201,15 +206,15 @@ packages() {
         
         if apt-cache show "$pkg_name" &>/dev/null; then
             AVAILABLE_PACKAGES+=("$pkg_name")
-            echo "  ✓ Available: $pkg_name"
+            echo "  [OK] Available: $pkg_name"
         else
             MISSING_PACKAGES+=("$pkg_name")
-            echo "  ✗ Not available: $pkg_name"
+            echo -e "  \033[31m[ERROR] Not available: $pkg_name\033[0m"
         fi
     done
     
     if [[ ${#MISSING_PACKAGES[@]} -gt 0 ]]; then
-        echo "ERROR: The following required packages are not available:" >&2
+        echo -e "\033[31mERROR: The following required packages are not available:\033[0m" >&2
         for pkg in "${MISSING_PACKAGES[@]}"; do
             echo "  - $pkg" >&2
         done
@@ -225,7 +230,7 @@ packages() {
     # Dry-run installation to check for dependency conflicts
     echo "Performing dry-run installation to check dependencies..."
     if ! apt-get install --dry-run -y "${AVAILABLE_PACKAGES[@]}" 2>&1 | tee "$TEMP_DIR/dryrun.log"; then
-        echo "ERROR: Dependency check failed during dry-run" >&2
+        echo -e "\033[31mERROR: Dependency check failed during dry-run\033[0m" >&2
         echo "Conflicts detected:" >&2
         grep -E "(Conflicts|Breaks|depends)" "$TEMP_DIR/dryrun.log" || true
         exit 1
@@ -265,7 +270,7 @@ packages() {
         INSTALL_SUCCESS=true
         echo "Package installation completed successfully"
     else
-        echo "ERROR: Package installation failed" >&2
+        echo -e "\033[31mERROR: Package installation failed\033[0m" >&2
         echo "Checking for partial installation state..." >&2
         
         # Try to fix broken packages
@@ -273,7 +278,7 @@ packages() {
             echo "Fixed broken packages, installation may have partially succeeded"
             # Don't set INSTALL_SUCCESS=true yet, verify below
         else
-            echo "ERROR: Cannot fix broken packages" >&2
+            echo -e "\033[31mERROR: Cannot fix broken packages\033[0m" >&2
             # Clean up apt configuration before exit
             rm -f /etc/apt/apt.conf.d/99-packages-safety
             exit 1
@@ -290,7 +295,7 @@ packages() {
     
     # Verify package system integrity after installation
     if ! apt-get check 2>/dev/null; then
-        echo "ERROR: Post-installation package integrity check failed" >&2
+        echo -e "\033[31mERROR: Post-installation package integrity check failed\033[0m" >&2
         exit 1
     fi
     
@@ -307,34 +312,34 @@ packages() {
         # Check if package is installed and properly configured
         if dpkg -l "$pkg_name" 2>/dev/null | grep -q "^ii "; then
             INSTALLED_PACKAGES+=("$pkg_name")
-            echo "  ✓ Installed: $pkg_name"
+            echo "  [OK] Installed: $pkg_name"
             
             # Additional verification for services
             case "$pkg_name" in
                 "openssh-server")
                     # SSH service name varies (ssh, sshd, openssh-server)
                     if systemctl list-unit-files "ssh*" &>/dev/null || systemctl list-unit-files "sshd*" &>/dev/null; then
-                        echo "    ✓ SSH service available"
+                        echo "    [OK] SSH service available"
                     else
-                        echo "    ⚠ SSH service not found (may be normal)"
+                        echo "    [WARNING] SSH service not found (may be normal)"
                     fi
                     ;;
                 "nginx"|"tor"|"cron"|"apparmor")
                     if systemctl list-unit-files "$pkg_name*" &>/dev/null; then
-                        echo "    ✓ Service available: $pkg_name"
+                        echo "    [OK] Service available: $pkg_name"
                     else
-                        echo "    ⚠ Service not found: $pkg_name (may be normal)"
+                        echo "    [WARNING] Service not found: $pkg_name (may be normal)"
                     fi
                     ;;
             esac
         else
             FAILED_PACKAGES+=("$pkg_name")
-            echo "  ✗ Installation failed: $pkg_name"
+            echo -e "  \033[31m[ERROR] Installation failed: $pkg_name\033[0m"
         fi
     done
     
     if [[ ${#FAILED_PACKAGES[@]} -gt 0 ]]; then
-        echo "ERROR: The following packages failed to install properly:" >&2
+        echo -e "\033[31mERROR: The following packages failed to install properly:\033[0m" >&2
         for pkg in "${FAILED_PACKAGES[@]}"; do
             echo "  - $pkg" >&2
         done
@@ -357,10 +362,10 @@ packages() {
     
     for cmd in "${ESSENTIAL_COMMANDS[@]}"; do
         if command -v "$cmd" &>/dev/null; then
-            echo "  ✓ Command available: $cmd"
+            echo "  [OK] Command available: $cmd"
         else
             MISSING_COMMANDS+=("$cmd")
-            echo "  ✗ Command missing: $cmd"
+            echo -e "  \033[31m[ERROR] Command missing: $cmd\033[0m"
         fi
     done
     
@@ -377,55 +382,14 @@ packages() {
     
     # ---------------------------------------------------------------------
     # 6) Service State Verification and Cleanup
-    # ---------------------------------------------------------------------
-    echo "Verifying service states and performing cleanup..."
-    
-    # Check service states for packages that install services
-    local SERVICES_TO_CHECK=("ssh:openssh-server" "nginx:nginx" "tor:tor" "cron:cron" "apparmor:apparmor")
-    
-    for service_info in "${SERVICES_TO_CHECK[@]}"; do
-        local service_name="${service_info%%:*}"
-        local package_name="${service_info#*:}"
-        
-        if systemctl list-unit-files "${service_name}*" &>/dev/null; then
-            local service_state=$(systemctl is-enabled "$service_name" 2>/dev/null || echo "unknown")
-            echo "  Service $service_name: $service_state"
-            
-            # Enable services that should be running (but don't start them yet)
-            case "$service_name" in
-                "ssh"|"cron"|"apparmor")
-                    if [[ "$service_state" == "disabled" ]]; then
-                        echo "    Enabling $service_name..."
-                        systemctl enable "$service_name" || true
-                    fi
-                    ;;
-            esac
-        fi
-    done
-    
     # Clean package cache to free space
     apt-get clean 2>/dev/null || true
     apt-get autoremove -y 2>/dev/null || true
     
-    # Log package changes
-    local PACKAGES_AFTER=$(dpkg --get-selections 2>/dev/null | sort)
-    echo "$PACKAGES_AFTER" > "$TEMP_DIR/packages_after.txt"
-    
-    local CHANGES=$(diff "$TEMP_DIR/packages_before.txt" "$TEMP_DIR/packages_after.txt" 2>/dev/null | wc -l || echo "0")
-    echo "Package state changes: $CHANGES entries"
-    
-    # Final system health check
     local TOTAL_TIME=$(($(date +%s) - START_TIME))
     echo "Package installation completed in ${TOTAL_TIME} seconds"
     
-    # Verify critical system components are still functional
-    if ! systemctl is-system-running --quiet 2>/dev/null; then
-        local SYSTEM_STATE=$(systemctl is-system-running 2>/dev/null || echo "unknown")
-        echo "WARNING: System state after installation: $SYSTEM_STATE"
-        echo "This may be normal if services are starting up"
-    fi
-    
-    echo "Post-installation verification completed successfully"
+    echo -e "\033[92mPost-installation verification completed successfully\033[0m"
     
     # Check if package installations require a reboot
     check_current_reboot_needed "packages" "2"

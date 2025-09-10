@@ -21,7 +21,7 @@ verifyssh() {
     # Environment variables SSH_CLIENT and SSH_TTY are set when connected via SSH
     # This validation prevents users from accidentally locking themselves out
     if [[ -z "$SSH_CLIENT" && -z "$SSH_TTY" ]]; then
-        echo "Error: You are not connected via SSH"
+        echo -e "\033[31mError: You are not connected via SSH\033[0m"
         echo "This step must be run over an SSH connection to verify the SSH setup is working."
         echo ""
         echo "Please connect via SSH first:"
@@ -64,7 +64,7 @@ verifyssh() {
     fi
     
     echo ""
-    echo "SSH verification completed successfully!"
+    echo -e "\033[92mSSH verification completed successfully!\033[0m"
     echo "Your SSH key authentication is working and the server is properly secured."
     
     # SECURITY CHECK: Final user verification after SSH hardening

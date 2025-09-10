@@ -59,20 +59,20 @@ update() {
     
     # Check if we're running as root
     if [[ $EUID -ne 0 ]]; then
-        echo "ERROR: System update must be run as root" >&2
+        echo -e "\033[31mERROR: System update must be run as root\033[0m" >&2
         exit 1
     fi
     
     # Check available disk space (need at least 1GB free)
     AVAILABLE_SPACE=$(df /var/cache/apt/archives | awk 'NR==2 {print $4}')
     if [[ $AVAILABLE_SPACE -lt 1048576 ]]; then  # 1GB in KB
-        echo "ERROR: Insufficient disk space for update (need 1GB, have $(($AVAILABLE_SPACE/1024))MB)" >&2
+        echo -e "\033[31mERROR: Insufficient disk space for update (need 1GB, have $(($AVAILABLE_SPACE/1024))MB)\033[0m" >&2
         exit 1
     fi
     
     # Verify system is Debian-based
     if [[ ! -f /etc/debian_version ]]; then
-        echo "ERROR: This script is designed for Debian systems only" >&2
+        echo -e "\033[31mERROR: This script is designed for Debian systems only\033[0m" >&2
         exit 1
     fi
     
@@ -80,7 +80,7 @@ update() {
     local REQUIRED_CMDS=("apt-get" "dpkg" "ping" "timeout" "find" "fuser")
     for cmd in "${REQUIRED_CMDS[@]}"; do
         if ! command -v "$cmd" &>/dev/null; then
-            echo "ERROR: Required command '$cmd' not found" >&2
+            echo -e "\033[31mERROR: Required command '$cmd' not found\033[0m" >&2
             exit 1
         fi
     done
@@ -109,7 +109,7 @@ update() {
     done
     
     if [[ "$NETWORK_OK" != "true" ]]; then
-        echo "ERROR: No network connectivity to Debian repositories" >&2
+        echo -e "\033[31mERROR: No network connectivity to Debian repositories\033[0m" >&2
         echo "Please check internet connection and DNS resolution" >&2
         exit 1
     fi
@@ -133,7 +133,7 @@ update() {
             done
             
             if fuser "$lock_file" 2>/dev/null; then
-                echo "ERROR: APT is still locked after waiting. Another package manager may be running." >&2
+                echo -e "\033[31mERROR: APT is still locked after waiting. Another package manager may be running.\033[0m" >&2
                 echo "Please wait for other package operations to complete or kill blocking processes." >&2
                 exit 1
             fi
@@ -150,11 +150,11 @@ update() {
             echo "Package configuration repair successful"
             # Recheck after repair
             if ! apt-get check 2>/dev/null; then
-                echo "ERROR: Package system still has issues after repair attempt" >&2
+                echo -e "\033[31mERROR: Package system still has issues after repair attempt\033[0m" >&2
                 exit 1
             fi
         else
-            echo "ERROR: Cannot repair package system configuration" >&2
+            echo -e "\033[31mERROR: Cannot repair package system configuration\033[0m" >&2
             echo "Manual intervention may be required" >&2
             exit 1
         fi
@@ -186,7 +186,7 @@ update() {
                 echo "Update attempt failed, retrying in 30 seconds..."
                 sleep 30
             else
-                echo "ERROR: Failed to update package lists after $MAX_UPDATE_ATTEMPTS attempts" >&2
+                echo -e "\033[31mERROR: Failed to update package lists after $MAX_UPDATE_ATTEMPTS attempts\033[0m" >&2
                 echo "Last error log:" >&2
                 tail -20 "$UPDATE_LOG" >&2 || true
                 exit 1
@@ -247,7 +247,7 @@ update() {
             UPGRADE_SUCCESS=true
             echo "System upgrade completed successfully"
         else
-            echo "ERROR: System upgrade failed" >&2
+            echo -e "\033[31mERROR: System upgrade failed\033[0m" >&2
             echo "Checking for partial upgrade state..." >&2
             
             # Try to fix broken packages
@@ -255,7 +255,7 @@ update() {
                 echo "Fixed broken packages, upgrade may have partially succeeded"
                 UPGRADE_SUCCESS=true
             else
-                echo "ERROR: Cannot fix broken packages" >&2
+                echo -e "\033[31mERROR: Cannot fix broken packages\033[0m" >&2
                 exit 1
             fi
         fi
@@ -264,7 +264,7 @@ update() {
         rm -f /etc/apt/apt.conf.d/99-update-safety
         
         if [[ "$UPGRADE_SUCCESS" != "true" ]]; then
-            echo "ERROR: System upgrade failed and could not be recovered" >&2
+            echo -e "\033[31mERROR: System upgrade failed and could not be recovered\033[0m" >&2
             exit 1
         fi
     fi
@@ -276,7 +276,7 @@ update() {
     
     # Verify package system integrity
     if ! apt-get check 2>/dev/null; then
-        echo "ERROR: Post-update package integrity check failed" >&2
+        echo -e "\033[31mERROR: Post-update package integrity check failed\033[0m" >&2
         exit 1
     fi
     
@@ -291,24 +291,10 @@ update() {
         echo "Package state changes: $CHANGES entries"
     fi
     
-    # Check if reboot is required
-    if [[ -f /var/run/reboot-required ]]; then
-        echo "NOTE: System reboot will be required after setup completion"
-        echo "Reboot-required packages: $(cat /var/run/reboot-required.pkgs 2>/dev/null | tr '\n' ' ')"
-    fi
-    
-    # Final system health check
     local TOTAL_TIME=$(($(date +%s) - START_TIME))
     echo "Update completed in ${TOTAL_TIME} seconds"
     
-    # Verify critical system components are functional
-    if ! systemctl is-system-running --quiet 2>/dev/null; then
-        local SYSTEM_STATE=$(systemctl is-system-running 2>/dev/null || echo "unknown")
-        echo "WARNING: System state after update: $SYSTEM_STATE"
-        echo "This may be normal during startup or if services failed"
-    fi
-    
-    echo "Post-update validation completed successfully"
+    echo -e "\033[92mPost-update validation completed successfully\033[0m"
     
     # Check if this step requires a reboot
     check_current_reboot_needed "update" "1"

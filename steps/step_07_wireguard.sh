@@ -169,7 +169,7 @@ wireguard() {
                 # Additional check for obviously invalid ranges
                 local first_octet="${OCTETS[0]}"
                 if [[ "$first_octet" -eq 0 || "$first_octet" -eq 127 ]]; then
-                    echo "Error: IP address $server_ip appears to be invalid"
+                    echo -e "\033[31mError: IP address $server_ip appears to be invalid\033[0m"
                     echo "First octet cannot be 0 or 127"
                     continue
                 fi
@@ -189,7 +189,7 @@ wireguard() {
                     break
                 fi
             fi
-            echo "Error: Please enter a valid IPv4 address (e.g., 203.0.113.1)"
+            echo -e "\033[31mError: Please enter a valid IPv4 address (e.g., 203.0.113.1)\033[0m"
         done
     fi
     
@@ -231,7 +231,7 @@ EOF
         echo "Continue to step 10 (hardening) to configure UFW firewall rules."
         echo "Until then, WireGuard port 51820 is open to all traffic!"
     else
-        echo "Error: Failed to start WireGuard service"
+        echo -e "\033[31mError: Failed to start WireGuard service\033[0m"
         exit 1
     fi
     
@@ -324,13 +324,8 @@ EOF
     echo "   - SSH: Connect to 10.11.12.1:22 for secure shell access"
     echo "   - Only these specific services route through the VPN tunnel"
     echo ""
-    echo "========================================"
-    echo "       FIREWALL CONFIGURATION NOTE"
-    echo "========================================"
-    echo ""
-    echo "UFW firewall is installed but not configured."
-    echo "A future step will handle UFW configuration."
-    echo ""
+    
+    echo -e "\033[92mWireGuard VPN setup completed successfully!\033[0m"
     
     mark_step_completed 7
 }

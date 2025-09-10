@@ -76,7 +76,7 @@ mark_step_completed() {
     fi
     
     chmod 644 "$STATUS_FILE" 2>/dev/null || true
-    echo "Step $step_num completed and saved to state file"
+    echo -e "\033[92mStep $step_num completed and saved to state file\033[0m"
 }
 
 # Extract saved username from state file

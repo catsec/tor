@@ -115,7 +115,19 @@ info() {
         echo "  SSH Hidden Service: NOT CONFIGURED"
     fi
     
-    if [[ ! -f "$NGINX_HS_DIR/hostname" && ! -f "$SSH_HS_DIR/hostname" ]]; then
+    # XMPP Hidden Service
+    XMPP_HS_DIR="/var/lib/tor/xmpp_hidden_service"
+    if [[ -f "$XMPP_HS_DIR/hostname" ]]; then
+        XMPP_TOR_HOSTNAME=$(cat "$XMPP_HS_DIR/hostname" 2>/dev/null | tr -d '\n\r')
+        echo "  XMPP Service: $XMPP_TOR_HOSTNAME"
+        echo "    Client port: 5222 (XMPP clients)"
+        echo "    Web interface: 5281 (browser access)"
+        echo "    Web access: http://$XMPP_TOR_HOSTNAME:5281"
+    else
+        echo "  XMPP Hidden Service: NOT CONFIGURED"
+    fi
+    
+    if [[ ! -f "$NGINX_HS_DIR/hostname" && ! -f "$SSH_HS_DIR/hostname" && ! -f "$XMPP_HS_DIR/hostname" ]]; then
         echo "  (Run step 8 - tor configuration to enable hidden services)"
     fi
     echo ""
@@ -138,7 +150,7 @@ info() {
         if [[ -f "$WG_CLIENT_CONF" ]]; then
             echo "  CLIENT CONFIGURATION (save as .conf file):"
             echo "  ----------------------------------------"
-            cat "$WG_CLIENT_CONF" 2>/dev/null || echo "  ERROR: Cannot read client config"
+            cat "$WG_CLIENT_CONF" 2>/dev/null || echo -e "  \033[31mERROR: Cannot read client config\033[0m"
             echo "  ----------------------------------------"
             echo ""
             
@@ -146,7 +158,7 @@ info() {
             if command -v qrencode >/dev/null 2>&1; then
                 echo "  QR CODE FOR MOBILE (scan with WireGuard app):"
                 echo ""
-                qrencode -t ansiutf8 -l L < "$WG_CLIENT_CONF" 2>/dev/null || echo "  ERROR: Cannot generate QR code"
+                qrencode -t ansiutf8 -l L < "$WG_CLIENT_CONF" 2>/dev/null || echo -e "  \033[31mERROR: Cannot generate QR code\033[0m"
                 echo ""
             else
                 echo "  Install 'qrencode' package to display QR code for mobile setup"
@@ -270,6 +282,11 @@ info() {
         SSH_TOR_HOSTNAME=$(cat "/var/lib/tor/ssh_hidden_service/hostname" 2>/dev/null | tr -d '\n\r')
         echo "   SSH: ssh -o ProxyCommand='nc -X 5 -x 127.0.0.1:9050 %h %p' $USERNAME@$SSH_TOR_HOSTNAME"
     fi
+    if [[ -f "/var/lib/tor/xmpp_hidden_service/hostname" ]]; then
+        XMPP_TOR_HOSTNAME=$(cat "/var/lib/tor/xmpp_hidden_service/hostname" 2>/dev/null | tr -d '\n\r')
+        echo "   XMPP Web: curl --socks5-hostname 127.0.0.1:9050 http://$XMPP_TOR_HOSTNAME:5281"
+        echo "   XMPP Client: Connect to $XMPP_TOR_HOSTNAME:5222 via Tor proxy"
+    fi
     echo ""
     
     echo "5. Update system safely:"
@@ -287,7 +304,7 @@ info() {
     echo "                              SETUP COMPLETE"
     echo "==============================================================================="
     
-    mark_step_completed 11
+    mark_step_completed 12
 }
 
 # Execute function if called directly

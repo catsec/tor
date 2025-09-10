@@ -10,7 +10,8 @@
       "Bash(./setup.sh:*)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(git config:*)"
+      "Bash(git config:*)",
+      "WebSearch"
     ],
     "deny": [],
     "ask": []

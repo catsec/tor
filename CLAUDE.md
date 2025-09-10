@@ -9,7 +9,7 @@ A comprehensive bash script for setting up a secure Debian 13 server with SSH ha
 
 ## Steps Overview
 1. **update** - Update system packages (`apt update && apt dist-upgrade`)
-2. **packages** - Install security packages (`openssh-server ufw tor nyx nginx wireguard curl qrencode`)
+2. **packages** - Install security packages (`openssh-server ufw tor nyx nginx wireguard curl qrencode prosody prosody-modules lua-bit32 libjs-bootstrap4 libjs-jquery`)
 3. **verify** - Verify all installations and services
 4. **user** - Create non-root user with sudo privileges
 5. **ssh** - Setup SSH key authentication and harden SSH config
@@ -17,6 +17,9 @@ A comprehensive bash script for setting up a secure Debian 13 server with SSH ha
 7. **wireguard** - Setup WireGuard VPN with selective routing
 8. **tor** - Configure Tor proxy with secure settings
 9. **site** - Setup hardened nginx site with demo page
+10. **xmpp** - Install and configure XMPP server
+11. **harden** - System and kernel hardening, UFW, AppArmor, no-logs
+12. **info** - Display complete system configuration and usage info
 
 ## Key Features
 
@@ -65,6 +68,11 @@ A comprehensive bash script for setting up a secure Debian 13 server with SSH ha
 - `wireguard` - VPN software
 - `curl` - HTTP client for IP detection
 - `qrencode` - QR code generation
+- `prosody` - XMPP server for secure messaging
+- `prosody-modules` - Additional modules for Prosody
+- `lua-bit32` - Lua bit manipulation library
+- `libjs-bootstrap4` - Bootstrap CSS framework for web interfaces
+- `libjs-jquery` - jQuery JavaScript library
 
 ## Usage Patterns
 
@@ -90,7 +98,7 @@ sudo setup.sh -s wireguard
 
 ## Important Notes
 - Steps 1-5: Run as root (fresh Debian default)
-- Steps 6-9: Run as created user via SSH (requires sudo)
+- Steps 6-12: Run as created user via SSH (requires sudo)
 - Script copies itself to `/usr/local/bin/setup.sh` for global access
 - SSH hardening forces script termination - must reconnect via SSH to continue
 - WireGuard uses selective routing, not full tunnel
@@ -125,3 +133,11 @@ curl --socks5-hostname 127.0.0.1:9050 http://$(cat /var/lib/tor/nginx_hidden_ser
 - NEVER create files unless absolutely necessary
 - ALWAYS prefer editing existing files to creating new ones
 - NEVER proactively create documentation files unless explicitly requested
+
+## Completion Requirements
+When asked to perform any task across multiple files or locations:
+1. ALWAYS use Grep or Glob to identify ALL instances before starting
+2. Create a comprehensive TodoWrite list covering EVERY file/location found
+3. Work through ALL items systematically without stopping until complete
+4. NEVER claim completion unless ALL instances have been processed
+5. If interrupted, always resume from where you left off using the todo list

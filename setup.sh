@@ -55,7 +55,7 @@ while [[ $# -gt 0 ]]; do
         -s|--step)
             if [[ -z "$2" ]]; then
                 echo "Error: --step requires a step name" >&2
-                echo "Valid steps: update, packages, verify, user, ssh, verifyssh, wireguard, tor, site, harden, info" >&2
+                echo "Valid steps: update, packages, verify, user, ssh, verifyssh, wireguard, tor, site, xmpp, harden, info" >&2
                 exit 1
             fi
             FORCE_STEP=$(get_step_number "$2")
@@ -64,7 +64,7 @@ while [[ $# -gt 0 ]]; do
         -c|--continue)
             if [[ -z "$2" ]]; then
                 echo "Error: --continue requires a step name" >&2
-                echo "Valid steps: update, packages, verify, user, ssh, verifyssh, wireguard, tor, site, harden, info" >&2
+                echo "Valid steps: update, packages, verify, user, ssh, verifyssh, wireguard, tor, site, xmpp, harden, info" >&2
                 exit 1
             fi
             CONTINUE_FROM=$(get_step_number "$2")
@@ -85,7 +85,7 @@ while [[ $# -gt 0 ]]; do
         -h|--help)
             echo "Usage: $0 [options]"
             echo "Options:"
-            echo "  -s, --step STEP    Force execute specific step (update|packages|verify|user|ssh|verifyssh|wireguard|tor|site|harden|info)"
+            echo "  -s, --step STEP    Force execute specific step (update|packages|verify|user|ssh|verifyssh|wireguard|tor|site|xmpp|harden|info)"
             echo "  -c, --continue STEP Continue from step and update state file"
             echo "  --info             Display complete system configuration and usage info"
             echo "  -h, --help         Show this help message"
@@ -100,6 +100,7 @@ while [[ $# -gt 0 ]]; do
             echo "  wireguard - Setup WireGuard VPN with one peer"
             echo "  tor       - Configure Tor proxy with secure settings"
             echo "  site      - Setup hardened nginx site with demo page"
+            echo "  xmpp      - Install and configure XMPP server"
             echo "  harden    - System and kernel hardening, UFW, AppArmor, no-logs"
             echo "  info      - Display complete system configuration and usage info"
             exit 0
@@ -116,15 +117,15 @@ done
 #===============================================================================
 
 if [ "$(id -u)" -ne 0 ]; then
-    if [[ -n "$FORCE_STEP" && ("$FORCE_STEP" -eq 6 || "$FORCE_STEP" -eq 7 || "$FORCE_STEP" -eq 8 || "$FORCE_STEP" -eq 9 || "$FORCE_STEP" -eq 10 || "$FORCE_STEP" -eq 11) ]] || \
+    if [[ -n "$FORCE_STEP" && ("$FORCE_STEP" -eq 6 || "$FORCE_STEP" -eq 7 || "$FORCE_STEP" -eq 8 || "$FORCE_STEP" -eq 9 || "$FORCE_STEP" -eq 10 || "$FORCE_STEP" -eq 11 || "$FORCE_STEP" -eq 12) ]] || \
        [[ -n "$CONTINUE_FROM" && "$CONTINUE_FROM" -ge 6 ]]; then
         if ! sudo -n true 2>/dev/null; then
-            echo "Steps 6-11 require sudo access when not running as root" >&2
+            echo "Steps 6-12 require sudo access when not running as root" >&2
             echo "Please run: sudo $0 [options]" >&2
             echo "Or run as root for all steps" >&2
             exit 1
         fi
-        echo "Running with sudo privileges for steps 6-11"
+        echo "Running with sudo privileges for steps 6-12"
     else
         echo "Steps 1-5 must be run as root" >&2
         echo "Please run: sudo $0 [options]" >&2
@@ -208,7 +209,7 @@ for user in "${login_users[@]}"; do
 done
 
 if [[ ${#non_root_users[@]} -gt 0 ]]; then
-    echo "SECURITY ERROR: System has existing users other than root!"
+    echo -e "\033[31mSECURITY ERROR: System has existing users other than root!\033[0m"
     echo ""
     echo "Found login-capable users: ${login_users[*]}"
     echo "Non-root users detected: ${non_root_users[*]}"
@@ -248,8 +249,9 @@ declare -a STEPS=(
     "7:wireguard:$SCRIPT_DIR/steps/step_07_wireguard.sh"
     "8:tor:$SCRIPT_DIR/steps/step_08_tor.sh"
     "9:site:$SCRIPT_DIR/steps/step_09_site.sh"
-    "10:harden:$SCRIPT_DIR/steps/step_10_harden.sh"
-    "11:info:$SCRIPT_DIR/steps/step_11_info.sh"
+    "10:xmpp:$SCRIPT_DIR/steps/step_10_xmpp.sh"
+    "11:harden:$SCRIPT_DIR/steps/step_11_harden.sh"
+    "12:info:$SCRIPT_DIR/steps/step_12_info.sh"
 )
 
 for step_info in "${STEPS[@]}"; do
@@ -279,6 +281,7 @@ for step_info in "${STEPS[@]}"; do
                 "wireguard") wireguard ;;
                 "tor") tor ;;
                 "site") site ;;
+                "xmpp") xmpp ;;
                 "harden") harden ;;
                 "info") info ;;
             esac
@@ -287,12 +290,12 @@ for step_info in "${STEPS[@]}"; do
             exit 1
         fi
         
-        echo "Step $step_num ($step_name) completed successfully"
+        echo -e "\033[92mStep $step_num ($step_name) completed successfully\033[0m"
         echo ""
         
         # Special handling for step 5 (SSH hardening)
         if [[ "$step_num" -eq 5 ]]; then
-            echo "SSH hardening completed. Script must terminate for security."
+            echo -e "\033[92mSSH hardening completed. Script must terminate for security.\033[0m"
             echo "To continue, reconnect via SSH and run: sudo $0"
             echo ""
             echo "Connection command will be similar to:"
@@ -308,16 +311,16 @@ for step_info in "${STEPS[@]}"; do
 done
 
 echo "==============================================================================="
-echo "All applicable steps completed successfully!"
+echo -e "\033[92mAll applicable steps completed successfully!\033[0m"
 echo "==============================================================================="
 last_step=$(get_last_completed_step)
-echo "Current status: Step $last_step completed"
+echo -e "\033[92mCurrent status: Step $last_step completed\033[0m"
 
-if [[ "$last_step" -eq 10 ]]; then
+if [[ "$last_step" -eq 11 ]]; then
     # Check if reboot is required before running info step
     if [[ -f "$REBOOT_FLAG_FILE" ]]; then
         echo ""
-        echo "🎉 Setup steps completed, but system reboot is required!"
+        echo -e "\033[92mSetup steps completed, but system reboot is required!\033[0m"
         echo ""
         echo "A reboot is needed to activate:"
         cat "$REBOOT_FLAG_FILE" 2>/dev/null || echo "System configuration changes"
@@ -326,7 +329,7 @@ if [[ "$last_step" -eq 10 ]]; then
         echo "The setup will then display configuration info (step 11)"
     else
         echo ""
-        echo "🎉 Complete Debian 13 security setup finished!"
+        echo -e "\033[92mComplete Debian 13 security setup finished!\033[0m"
         echo ""
         echo "Running final step to display configuration info..."
         echo ""
@@ -339,9 +342,9 @@ if [[ "$last_step" -eq 10 ]]; then
             echo "Error: Info step not found, but setup is complete"
         fi
     fi
-elif [[ "$last_step" -eq 11 ]]; then
+elif [[ "$last_step" -eq 12 ]]; then
     echo ""
-    echo "Setup is complete. Use 'sudo setup.sh --info' to view configuration details again."
+    echo -e "\033[92mSetup is complete. Use 'sudo setup.sh --info' to view configuration details again.\033[0m"
     
     # Clean up any remaining reboot flags since setup is fully complete
     rm -f "$REBOOT_FLAG_FILE" 2>/dev/null || true

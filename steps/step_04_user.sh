@@ -91,7 +91,7 @@ user() {
     
     # Check if we're running as root
     if [[ $EUID -ne 0 ]]; then
-        echo "ERROR: User creation must be run as root" >&2
+        echo -e "\033[31mERROR: User creation must be run as root\033[0m" >&2
         exit 1
     fi
     
@@ -99,33 +99,33 @@ user() {
     local REQUIRED_USER_CMDS=("useradd" "usermod" "userdel" "chpasswd" "groups" "id" "su" "sudo" "passwd")
     for cmd in "${REQUIRED_USER_CMDS[@]}"; do
         if ! command -v "$cmd" &>/dev/null; then
-            echo "ERROR: Required user management command '$cmd' not found" >&2
+            echo -e "\033[31mERROR: Required user management command '$cmd' not found\033[0m" >&2
             exit 1
         fi
     done
     
     # Check if sudo group exists
     if ! getent group sudo &>/dev/null; then
-        echo "ERROR: sudo group does not exist on this system" >&2
+        echo -e "\033[31mERROR: sudo group does not exist on this system\033[0m" >&2
         echo "This may indicate a missing or misconfigured sudo package" >&2
         exit 1
     fi
     
     # Verify /etc/passwd and /etc/shadow are writable
     if [[ ! -w /etc/passwd ]]; then
-        echo "ERROR: Cannot write to /etc/passwd" >&2
+        echo -e "\033[31mERROR: Cannot write to /etc/passwd\033[0m" >&2
         exit 1
     fi
     
     if [[ ! -w /etc/shadow ]]; then
-        echo "ERROR: Cannot write to /etc/shadow" >&2
+        echo -e "\033[31mERROR: Cannot write to /etc/shadow\033[0m" >&2
         exit 1
     fi
     
     # Check disk space for home directory
     local AVAILABLE_HOME_SPACE=$(df /home 2>/dev/null | awk 'NR==2 {print $4}' || echo "0")
     if [[ $AVAILABLE_HOME_SPACE -lt 102400 ]]; then  # 100MB in KB
-        echo "ERROR: Insufficient disk space for user home directory (need 100MB, have $(($AVAILABLE_HOME_SPACE/1024))MB)" >&2
+        echo -e "\033[31mERROR: Insufficient disk space for user home directory (need 100MB, have $(($AVAILABLE_HOME_SPACE/1024))MB)\033[0m" >&2
         exit 1
     fi
     
@@ -321,20 +321,20 @@ user() {
     # Create user with comprehensive options
     echo "Creating user: $username"
     if ! useradd -m -s /bin/bash -c "Security Setup User" "$username" 2>&1 | tee "$USER_LOG"; then
-        echo "ERROR: Failed to create user account" >&2
+        echo -e "\033[31mERROR: Failed to create user account\033[0m" >&2
         cat "$USER_LOG" >&2
         exit 1
     fi
     
     # Verify user creation
     if ! id "$username" &>/dev/null; then
-        echo "ERROR: User creation succeeded but user cannot be found" >&2
+        echo -e "\033[31mERROR: User creation succeeded but user cannot be found\033[0m" >&2
         exit 1
     fi
     
     # Verify home directory creation
     if [[ ! -d "/home/$username" ]]; then
-        echo "ERROR: Home directory was not created" >&2
+        echo -e "\033[31mERROR: Home directory was not created\033[0m" >&2
         exit 1
     fi
     
@@ -352,7 +352,7 @@ user() {
     # SECURE PASSWORD SETTING: Use printf and pipe to avoid shell expansion
     # This method prevents password exposure in process arguments and handles special characters
     if ! printf '%s:%s\n' "$username" "$password" | chpasswd 2>&1 | tee -a "$USER_LOG"; then
-        echo "ERROR: Failed to set user password" >&2
+        echo -e "\033[31mERROR: Failed to set user password\033[0m" >&2
         cat "$USER_LOG" >&2
         exit 1
     fi
@@ -373,14 +373,14 @@ user() {
     
     # Add user to sudo group
     if ! usermod -aG sudo "$username" 2>&1 | tee -a "$USER_LOG"; then
-        echo "ERROR: Failed to add user to sudo group" >&2
+        echo -e "\033[31mERROR: Failed to add user to sudo group\033[0m" >&2
         cat "$USER_LOG" >&2
         exit 1
     fi
     
     # Verify sudo group membership
     if ! groups "$username" | grep -q sudo; then
-        echo "ERROR: User was not successfully added to sudo group" >&2
+        echo -e "\033[31mERROR: User was not successfully added to sudo group\033[0m" >&2
         exit 1
     fi
     
@@ -417,14 +417,14 @@ SCRIPT_EOF
     # Method 1: Direct sudo test with password file
     if sudo_test_result=$(su - "$username" -c "\"$temp_script\" \"$temp_password_file\"" 2>/dev/null); then
         if [[ "$sudo_test_result" == "root" ]]; then
-            echo "  ✓ Basic sudo test passed"
+            echo "  [OK] Basic sudo test passed"
         else
-            echo "  ✗ Basic sudo test failed: got '$sudo_test_result', expected 'root'"
+            echo -e "  \033[31m[ERROR] Basic sudo test failed: got '$sudo_test_result', expected 'root'\033[0m"
             rm -f "$temp_script" "$temp_password_file"
             exit 1
         fi
     else
-        echo "  ✗ Basic sudo test failed: command execution error"
+        echo -e "  \033[31m[ERROR] Basic sudo test failed: command execution error\033[0m"
         rm -f "$temp_script" "$temp_password_file"
         exit 1
     fi
@@ -434,14 +434,14 @@ SCRIPT_EOF
     local group_test=""
     if group_test=$(su - "$username" -c "groups" 2>/dev/null); then
         if echo "$group_test" | grep -q sudo; then
-            echo "  ✓ Sudo group membership confirmed"
+            echo "  [OK] Sudo group membership confirmed"
         else
-            echo "  ✗ Sudo group membership test failed"
+            echo -e "  \033[31m[ERROR] Sudo group membership test failed\033[0m"
             rm -f "$temp_script" "$temp_password_file"
             exit 1
         fi
     else
-        echo "  ✗ Group membership test failed"
+        echo -e "  \033[31m[ERROR] Group membership test failed\033[0m"
         rm -f "$temp_script" "$temp_password_file"
         exit 1
     fi
@@ -458,12 +458,12 @@ CONFIG_TEST_EOF
     local config_result=""
     if config_result=$(su - "$username" -c "\"$config_test_script\" \"$temp_password_file\"" 2>/dev/null); then
         if [[ "$config_result" == "config_ok" ]]; then
-            echo "  ✓ Sudo configuration access confirmed"
+            echo "  [OK] Sudo configuration access confirmed"
         else
-            echo "  ⚠ Sudo configuration test inconclusive (may be normal)"
+            echo "  [WARNING] Sudo configuration test inconclusive (may be normal)"
         fi
     else
-        echo "  ⚠ Sudo configuration test failed (may be normal depending on sudo config)"
+        echo "  [WARNING] Sudo configuration test failed (may be normal depending on sudo config)"
     fi
     
     rm -f "$config_test_script"
@@ -492,26 +492,26 @@ CONFIG_TEST_EOF
     
     # Verify UID is in normal user range (1000+)
     if [[ $uid -lt 1000 ]]; then
-        echo "  ⚠ UID is below 1000 (system user range)"
+        echo "  [WARNING] UID is below 1000 (system user range)"
     else
-        echo "  ✓ UID is in normal user range"
+        echo "  [OK] UID is in normal user range"
     fi
     
     # Verify home directory permissions
     local home_perms=$(stat -c %a "$home_dir" 2>/dev/null || echo "000")
     if [[ "$home_perms" == "700" ]]; then
-        echo "  ✓ Home directory permissions are secure (700)"
+        echo "  [OK] Home directory permissions are secure (700)"
     else
-        echo "  ⚠ Home directory permissions: $home_perms (should be 700)"
+        echo "  [WARNING] Home directory permissions: $home_perms (should be 700)"
         chmod 700 "$home_dir"
-        echo "  ✓ Home directory permissions corrected to 700"
+        echo "  [OK] Home directory permissions corrected to 700"
     fi
     
     # Verify shell is bash
     if [[ "$shell" == "/bin/bash" ]]; then
-        echo "  ✓ Shell is set to /bin/bash"
+        echo "  [OK] Shell is set to /bin/bash"
     else
-        echo "  ⚠ Shell is $shell (expected /bin/bash)"
+        echo "  [WARNING] Shell is $shell (expected /bin/bash)"
     fi
     
     # Check for proper group memberships
@@ -533,7 +533,7 @@ CONFIG_TEST_EOF
     echo "Total non-system users: $total_users"
     
     if [[ $total_users -gt 10 ]]; then
-        echo "  ⚠ Large number of user accounts detected"
+        echo "  [WARNING] Large number of user accounts detected"
         echo "  Consider reviewing user accounts before SSH hardening"
     fi
     
@@ -543,16 +543,16 @@ CONFIG_TEST_EOF
     
     # Final verification that user can be used for SSH
     if [[ -d "/home/$username" && -x "/bin/bash" ]]; then
-        echo "  ✓ User account ready for SSH access"
+        echo "  [OK] User account ready for SSH access"
     else
-        echo "  ✗ User account setup incomplete"
+        echo -e "  \033[31m[ERROR] User account setup incomplete\033[0m"
         exit 1
     fi
     
     # Final system health check
     local TOTAL_TIME=$(($(date +%s) - START_TIME))
     echo ""
-    echo "User creation completed successfully in ${TOTAL_TIME} seconds"
+    echo -e "\033[92mUser creation completed successfully in ${TOTAL_TIME} seconds\033[0m"
     echo "User '$username' is ready for SSH hardening configuration"
     
     # Check if this step requires a reboot

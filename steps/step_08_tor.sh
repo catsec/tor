@@ -78,6 +78,12 @@ HiddenServiceDir /var/lib/tor/ssh_hidden_service/
 HiddenServicePort 22 127.0.0.1:22
 HiddenServiceVersion 3
 
+# XMPP hidden service
+HiddenServiceDir /var/lib/tor/xmpp_hidden_service/
+HiddenServicePort 5222 127.0.0.1:5222
+HiddenServicePort 5281 127.0.0.1:5281
+HiddenServiceVersion 3
+
 ## Security Settings
 # Reject all single-hop relays
 AllowSingleHopCircuits 0
@@ -161,7 +167,7 @@ EOF
     if systemctl is-active tor &>/dev/null; then
         echo "Tor service started successfully!"
     else
-        echo "Error: Failed to start Tor service"
+        echo -e "\033[31mError: Failed to start Tor service\033[0m"
         echo "Checking Tor status..."
         systemctl status tor --no-pager -l
         exit 1
@@ -209,10 +215,12 @@ EOF
     echo "Hidden Services:"
     echo "- Nginx (port 80): /var/lib/tor/nginx_hidden_service/hostname"
     echo "- SSH (port 22): /var/lib/tor/ssh_hidden_service/hostname"
+    echo "- XMPP (ports 5222,5281): /var/lib/tor/xmpp_hidden_service/hostname"
     echo ""
     echo "To view hidden service addresses:"
     echo "- Nginx: sudo cat /var/lib/tor/nginx_hidden_service/hostname"
     echo "- SSH: sudo cat /var/lib/tor/ssh_hidden_service/hostname"
+    echo "- XMPP: sudo cat /var/lib/tor/xmpp_hidden_service/hostname"
     echo ""
     echo "Cookie Authentication (for nyx):"
     echo "- Cookie file: /var/lib/tor/control_auth_cookie"
@@ -245,6 +253,8 @@ EOF
     echo "- No exit relay functionality (client only)"
     echo "- Hidden services use v3 addresses for enhanced security"
     echo ""
+    
+    echo -e "\033[92mTor proxy configuration completed successfully!\033[0m"
     
     mark_step_completed 8
 }

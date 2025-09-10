@@ -26,7 +26,7 @@ ssh() {
         
         # Verify service started successfully before proceeding
         if ! systemctl is-active "$SSH_SERVICE" &>/dev/null; then
-            echo "Error: Failed to start SSH service ($SSH_SERVICE)"
+            echo -e "\033[31mError: Failed to start SSH service ($SSH_SERVICE)\033[0m"
             exit 1
         fi
         echo "SSH service ($SSH_SERVICE) started successfully"
@@ -76,7 +76,7 @@ ssh() {
                     break
                 fi
             fi
-            echo "Error: Please enter a valid IPv4 address (e.g., 192.168.1.100)"
+            echo -e "\033[31mError: Please enter a valid IPv4 address (e.g., 192.168.1.100)\033[0m"
         done
     fi
     
@@ -272,29 +272,20 @@ EOF
         
         # Verify SSH service restarted successfully
         if ! systemctl is-active "$SSH_SERVICE" &>/dev/null; then
-            echo "Error: SSH service ($SSH_SERVICE) failed to start after configuration change"
+            echo -e "\033[31mError: SSH service ($SSH_SERVICE) failed to start after configuration change\033[0m"
             cp /etc/ssh/sshd_config.backup /etc/ssh/sshd_config
             systemctl restart "$SSH_SERVICE"
             exit 1
         fi
-        echo "SSH service ($SSH_SERVICE) restarted with hardened configuration"
-        echo ""
-        echo "SSH hardening completed:"
-        echo "- Password authentication disabled"
-        echo "- Root login disabled"
-        echo "- Only key-based authentication allowed"
-        echo "- Only user '$username' can connect"
-        echo ""
-        echo "SSH hardening completed successfully."
+        echo -e "\033[92mSSH hardening completed successfully.\033[0m"
         echo "Connection command: ssh $username@$SERVER_IP"
         echo ""
         echo "IMPORTANT: You must now reconnect via SSH to continue the setup."
         echo "After connecting via SSH, run: sudo setup.sh"
-        echo "The script will continue with step 6 (verifyssh) to verify the SSH connection."
         mark_step_completed 5
         exit 0
     else
-        echo "SSH configuration test failed! Restoring backup..."
+        echo -e "\033[31mSSH configuration test failed! Restoring backup...\033[0m"
         cp /etc/ssh/sshd_config.backup /etc/ssh/sshd_config
         systemctl restart "$SSH_SERVICE"
         echo "Original SSH configuration restored and service restarted"
